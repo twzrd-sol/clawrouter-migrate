@@ -1,12 +1,15 @@
 {
-  "name": "@twzrd-sol/clawrouter-migrate",
+  "name": "clawrouter-migrate",
   "version": "0.1.0",
   "description": "One-command ClawRouter canary: detect surface, prove free (and optional paid) routing, write a profile and rewrite snippet.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "clawrouter-migrate": "./dist/cli.js"
+    "clawrouter-migrate": "dist/cli.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

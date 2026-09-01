@@ -56,8 +56,8 @@ export function parseArgs(argv: string[]): CliArgs {
 export const HELP = `clawrouter-migrate — prove a local ClawRouter path and print a rewrite snippet
 
 Usage:
-  npx @twzrd-sol/clawrouter-migrate
-  npx @twzrd-sol/clawrouter-migrate --paid --ceiling 0.05
+  npx clawrouter-migrate
+  npx clawrouter-migrate --paid --ceiling 0.05
 
 Options:
   --paid              Run a pinned cheap paid canary after free succeeds

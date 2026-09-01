@@ -10,4 +10,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   splitting: false,
+  onSuccess: "chmod +x dist/cli.js",
 });
