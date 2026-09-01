@@ -25,6 +25,12 @@ export function humanBlock(result: MigrateResult): string {
       : []),
     `  free:     ${result.free}${result.freeModel ? ` (${result.freeModel})` : ""}`,
     `  paid:     ${result.paid}${result.paidModel ? ` (${result.paidModel})` : ""}`,
+    ...(result.paidUsdcKnown === false
+      ? [
+          "  warn:     paid call succeeded but no signed-payment amount was parsed;",
+          "            spend is unverified and no receipt could be attributed",
+        ]
+      : []),
     `  receipt:  ${result.receipt || "-"}`,
     `  profile:  ${result.profile || "-"}`,
   ];

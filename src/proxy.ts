@@ -119,7 +119,10 @@ async function startClawRouterUpstream(
 }
 
 function restoreHome(prevHome: string | undefined, tmpHome: string): void {
-  process.env.HOME = prevHome;
+  // Assigning `undefined` to process.env coerces to the string "undefined",
+  // which would leave the caller with a HOME pointing at a nonexistent dir.
+  if (prevHome === undefined) delete process.env.HOME;
+  else process.env.HOME = prevHome;
   try {
     rmSync(tmpHome, { recursive: true, force: true });
   } catch {

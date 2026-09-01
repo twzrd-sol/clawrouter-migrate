@@ -72,6 +72,8 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       reason: args.paid ? "no funded wallet; re-run --paid with --wallet-file or SOLANA_WALLET_KEY" : undefined,
     };
 
+    // Stays true unless a real paid call lands with no parsable amount.
+    let paidUsdcKnown = true;
     if (args.paid && solanaSeed) {
       const address = handle.solanaAddress ?? handle.walletAddress;
       let before: string[] | null = null;
@@ -88,6 +90,12 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       paid = captured.value;
       const signed = captured.lines.map(parseSignedPaymentLog).find((n) => n !== undefined);
       if (signed !== undefined) paid.usdc = signed;
+      // A settled call whose amount we could not read is an attribution gap,
+      // not a $0 run — the provider log wording is a peer-library contract.
+      if (paid.ok === "ok" && !(paid.usdc > 0)) {
+        paidUsdcKnown = false;
+        paid.reason ??= "no signed-payment amount in provider log; spend unverified";
+      }
       if (before !== null && paid.usdc > 0 && (paid.ok === "ok" || signed !== undefined)) {
         // Receipt attribution whenever money moved, even if the chat request
         // itself failed; polling because RPC indexing lags settlement.
@@ -130,7 +138,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       maxCostPerRequest: args.ceiling,
       maxCostPerSession: Math.max(args.ceiling, 0.002),
       free: { model: free.model, ok: true },
-      paid: { model: paid.model, usdc: paid.usdc, ok: paid.ok },
+      paid: { model: paid.model, usdc: paid.usdc, ok: paid.ok, usdcKnown: paidUsdcKnown },
       rollbackBaseUrl: detected.rollbackBaseUrl,
     });
     (deps.writeProfile ?? writeFileSync)(profilePath, yaml);
@@ -159,6 +167,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       freeModel: free.model,
       paidModel: paid.model,
       paidUsdc: paid.usdc,
+      paidUsdcKnown,
       rewrite,
       keepRunning: args.keepRunning,
     });

@@ -87,3 +87,29 @@ describe("startIsolatedProxy", () => {
     await expect(fetch(`${handle.baseUrl}/v1/models`)).rejects.toThrow();
   });
 });
+
+describe("HOME isolation", () => {
+  it("unsets HOME again when it started unset, instead of leaving \"undefined\"", async () => {
+    const prev = process.env.HOME;
+    delete process.env.HOME;
+    try {
+      const handle = await startIsolatedProxy(
+        { ceiling: 0.05, paid: false, persistWallet: false },
+        {
+          startUpstream: async ({ port }) => ({
+            port,
+            baseUrl: `http://127.0.0.1:${port}`,
+            walletAddress: "So11111111111111111111111111111111111111112",
+            close: async () => {},
+          }),
+        },
+      );
+      expect(process.env.HOME).toBeDefined();
+      await handle.close();
+      expect("HOME" in process.env).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.HOME;
+      else process.env.HOME = prev;
+    }
+  });
+});
