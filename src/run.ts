@@ -125,6 +125,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
         freeModel: free.model,
         paidModel: paid.model,
         paidUsdc: paid.usdc,
+        paidReason: paid.reason,
         rewrite: "",
         keepRunning: false,
       });
@@ -168,6 +169,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       paidModel: paid.model,
       paidUsdc: paid.usdc,
       paidUsdcKnown,
+      paidReason: paid.reason,
       rewrite,
       keepRunning: args.keepRunning,
     });
@@ -182,7 +184,10 @@ function finish(result: MigrateResult): MigrateResult {
 }
 
 function writeSecure(path: string, contents: string): void {
-  writeFileSync(path, contents, { mode: 0o600 });
+  // `wx` fails if the path exists: `mode` only applies when the file is
+  // created, so overwriting an existing file (or a symlink planted at the
+  // predictable name) would keep its permissions and its target.
+  writeFileSync(path, contents, { mode: 0o600, flag: "wx" });
 }
 
 export function defaultDeps(): RunDeps {
