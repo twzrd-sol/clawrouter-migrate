@@ -31,7 +31,9 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 - Response cache off so the canary is a real request
 - Never prints key material
 - Detected OpenRouter / OpenAI keys are ignored and never uploaded
-- `partners: false` is enforced at runtime: the advertised port only forwards `/v1/models`, `/v1/chat/completions`, `/v1/completions`, and `/v1/embeddings`. Partner, phone, media, and other settlement paths return HTTP 403 (`type: route_blocked`) and never reach upstream.
+- `partners: false` is enforced at runtime: the advertised port only forwards `/v1/models`, `/v1/chat/completions`, `/v1/completions`, and `/v1/embeddings`. Partner, phone, media, and other settlement paths return HTTP 403 (`type: route_blocked`) and never reach upstream **through the advertised port**.
+
+That last guarantee is scoped to the gate, not to the host. ClawRouter's upstream listener binds to `127.0.0.1`, so it is not exposed to the LAN or tailnet. Other processes with access to this host can still connect to that loopback port while ClawRouter is running, reaching the unfiltered proxy and the ephemeral wallet behind it. The gate constrains what *your rewritten client* can settle; it is not a sandbox against other software on the machine. Unless `--keep-running` is used, the listener exits when the canary completes.
 
 Paid ceilings get estimator slack: a strict `$0.001` run cap 429s on a `$0.0012` estimate. The session cap is `max(--ceiling, 0.002)`.
 
