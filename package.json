@@ -1,5 +1,5 @@
 {
-  "name": "clawrouter-migrate",
+  "name": "@wzrd_sol/clawrouter-migrate",
   "version": "0.1.0",
   "description": "One-command ClawRouter canary: detect surface, prove free (and optional paid) routing, write a profile and rewrite snippet.",
   "type": "module",

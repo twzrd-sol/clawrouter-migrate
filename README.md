@@ -1,14 +1,14 @@
-# clawrouter-migrate
+# @wzrd_sol/clawrouter-migrate
 
 One command that proves a local [ClawRouter](https://github.com/BlockRunAI/ClawRouter) path and prints a rewrite snippet for OpenRouter / OpenAI / OpenClaw clients.
 
-Published unscoped as `clawrouter-migrate` because the npm org `@twzrd-sol` is not available to the publishing account. GitHub remains `twzrd-sol/clawrouter-migrate`. If BlockRun blesses the package, this graduates to `@blockrun/clawrouter-migrate` and later `clawrouter migrate`.
+npm scope is `@wzrd_sol`. GitHub remains `twzrd-sol/clawrouter-migrate`. The earlier unscoped `clawrouter-migrate@0.1.0` is unchanged. If BlockRun blesses the package, this graduates to `@blockrun/clawrouter-migrate` and later `clawrouter migrate`.
 
 Requires `@blockrun/clawrouter` **>= 0.12.249** (the floor that already ran free and paid canaries).
 
 ```bash
-npx clawrouter-migrate
-npx clawrouter-migrate --paid --ceiling 0.05
+npx @wzrd_sol/clawrouter-migrate
+npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05
 ```
 
 ## What it does
@@ -40,7 +40,7 @@ Paid ceilings get estimator slack: a strict `$0.001` run cap 429s on a `$0.0012`
 ## Paid wallet
 
 ```bash
-npx clawrouter-migrate --paid --ceiling 0.05 --wallet-file ./solana.json
+npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05 --wallet-file ./solana.json
 ```
 
 `--wallet-file` is a Solana secret JSON array (32-byte seed or 64-byte keypair). `SOLANA_WALLET_KEY` accepts the same JSON or a 64-character hex seed. The CLI does not read any default host wallet path.

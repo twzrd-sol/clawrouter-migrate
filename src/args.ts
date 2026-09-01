@@ -56,8 +56,8 @@ export function parseArgs(argv: string[]): CliArgs {
 export const HELP = `clawrouter-migrate — prove a local ClawRouter path and print a rewrite snippet
 
 Usage:
-  npx clawrouter-migrate
-  npx clawrouter-migrate --paid --ceiling 0.05
+  npx @wzrd_sol/clawrouter-migrate
+  npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05
 
 Options:
   --paid              Run a pinned cheap paid canary after free succeeds
@@ -72,6 +72,6 @@ Options:
 Env:
   SOLANA_WALLET_KEY   JSON array or 64-char hex seed for --paid (never printed)
 
-The package name is temporary. If BlockRun blesses it, this becomes
+Scoped as @wzrd_sol/clawrouter-migrate. If BlockRun blesses it, this becomes
 @blockrun/clawrouter-migrate and later \`clawrouter migrate\`.
 `;
