@@ -14,7 +14,7 @@ npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05
 ## What it does
 
 1. Detects the current surface (`OPENROUTER_*`, `OPENAI_*`, `~/.openclaw`, or unknown)
-2. Starts an **isolated** ClawRouter proxy on a free port (never 8402)
+2. Starts an **isolated** ClawRouter proxy behind an OpenAI-path allowlist gate on a free port (never 8402)
 3. Runs a free canary (`free/*` → HTTP 200, $0, no 402)
 4. Optionally runs a pinned paid canary (`deepseek/deepseek-chat`) under a pre-sign ceiling
 5. Writes `migrated-<timestamp>.profile.yaml` and prints a `baseURL` + `apiKey: "x402"` snippet
@@ -24,14 +24,14 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 
 ## Isolation guarantees
 
-- Unused listen port; refuses the default production port 8402 and refuses `--port` if something is already listening (the peer library would otherwise reuse that process)
+- Unused listen port; refuses the default production port 8402 and refuses `--port` if something is already listening (the peer library would otherwise reuse that process). `--port` is the **advertised** allowlist gate; ClawRouter itself binds a different loopback port.
 - In-memory spend policy (does not write `~/.openclaw/blockrun/spending.json`)
 - Temporary `HOME` so accidental persistence stays off the operator home
 - Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, gitignored). Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplied the paid signer — that flag must not write a different generated mnemonic.
 - Response cache off so the canary is a real request
 - Never prints key material
 - Detected OpenRouter / OpenAI keys are ignored and never uploaded
-- Partners / phone / media are not invoked (only `/v1/models` and `/v1/chat/completions`)
+- `partners: false` is enforced at runtime: the advertised port only forwards `/v1/models`, `/v1/chat/completions`, `/v1/completions`, and `/v1/embeddings`. Partner, phone, media, and other settlement paths return HTTP 403 (`type: route_blocked`) and never reach upstream.
 
 Paid ceilings get estimator slack: a strict `$0.001` run cap 429s on a `$0.0012` estimate. The session cap is `max(--ceiling, 0.002)`.
 
