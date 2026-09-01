@@ -1,4 +1,9 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  request as httpRequest,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { describe, expect, it } from "vitest";
 import {
   ALLOWED_ROUTES,
@@ -6,6 +11,33 @@ import {
   ROUTE_BLOCKED_BODY,
   startAllowlistGate,
 } from "../src/allowlist.js";
+
+/** fetch()/WHATWG URL collapse `%2e` before the request; http.request keeps the raw target. */
+function rawRequest(
+  baseUrl: string,
+  path: string,
+  method = "GET",
+): Promise<{ status: number; json: unknown }> {
+  const url = new URL(baseUrl);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { hostname: url.hostname, port: url.port, path, method },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          resolve({
+            status: res.statusCode ?? 0,
+            json: text ? JSON.parse(text) : null,
+          });
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 function listen(
   handler: (req: IncomingMessage, res: ServerResponse) => void,
@@ -88,6 +120,27 @@ describe("isAllowedRoute", () => {
       expect(isAllowedRoute(route), route).toBe(false);
     }
   });
+
+  it("rejects percent-encoded dots and separators that rematerialize as traversal", () => {
+    const encoded = [
+      "/v1/models/%2e%2e/partner/settle",
+      "/v1/models/%2E%2E/partner/settle",
+      "/v1/models/%2e",
+      "/v1/models/%2E",
+      "/v1/%2e%2e/v1/models",
+      "/%2e%2e/v1/models",
+      "/v1/models%2f../partner/settle",
+      "/v1/models%2Fextra",
+      "/v1/%2fpartner/settle",
+      "/v1/chat%2fcompletions",
+      "/v1/partner%2fsettle",
+      "/v1/models/%2e%2e/%2e%2e/v1/partner/x",
+      "/v1/models%5c..%5cpartner",
+    ];
+    for (const route of encoded) {
+      expect(isAllowedRoute(route), route).toBe(false);
+    }
+  });
 });
 
 describe("startAllowlistGate", () => {
@@ -137,6 +190,69 @@ describe("startAllowlistGate", () => {
       }
       expect(upstream.hits).toEqual(beforeHits);
       expect(upstream.hits.some((h) => h.includes("/v1/partner"))).toBe(false);
+    } finally {
+      await gate.close();
+      await upstream.close();
+    }
+  });
+
+  it("rejects encoded traversal against /v1/models and partner-looking paths", async () => {
+    const upstream = await listen((req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, path: req.url }));
+    });
+    const gate = await startAllowlistGate({ listenPort: 0, upstreamPort: upstream.port });
+    try {
+      const attempts = [
+        "/v1/models/%2e%2e/partner/settle",
+        "/v1/models/%2E%2E/partner/settle",
+        "/v1/models/%2e",
+        "/v1/models/%2E",
+        "/v1/%2e%2e/v1/models",
+        "/%2e%2e/v1/models",
+        "/v1/models%2f../partner/settle",
+        "/v1/models%2Fextra",
+        "/v1/%2fpartner/settle",
+        "/v1/chat%2fcompletions",
+        "/v1/partner%2fsettle",
+      ];
+      const beforeHits = [...upstream.hits];
+      for (const path of attempts) {
+        const blocked = await rawRequest(gate.baseUrl, path);
+        expect(blocked.status, path).toBe(403);
+        expect(blocked.json).toEqual(ROUTE_BLOCKED_BODY);
+      }
+      expect(upstream.hits).toEqual(beforeHits);
+    } finally {
+      await gate.close();
+      await upstream.close();
+    }
+  });
+
+  it("forwards the canonical pathname plus the original query string", async () => {
+    const upstream = await listen((req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, path: req.url }));
+    });
+    const gate = await startAllowlistGate({ listenPort: 0, upstreamPort: upstream.port });
+    try {
+      const withQuery = await fetch(`${gate.baseUrl}/v1/models?foo=1`);
+      expect(withQuery.status).toBe(200);
+      await expect(withQuery.json()).resolves.toEqual({ ok: true, path: "/v1/models?foo=1" });
+
+      const trailing = await fetch(`${gate.baseUrl}/v1/models/`);
+      expect(trailing.status).toBe(200);
+      await expect(trailing.json()).resolves.toEqual({ ok: true, path: "/v1/models" });
+
+      const encodedLetters = await rawRequest(gate.baseUrl, "/v1/%6d%6f%64%65%6c%73");
+      expect(encodedLetters.status).toBe(200);
+      expect(encodedLetters.json).toEqual({ ok: true, path: "/v1/models" });
+
+      expect(upstream.hits).toEqual([
+        "GET /v1/models?foo=1",
+        "GET /v1/models",
+        "GET /v1/models",
+      ]);
     } finally {
       await gate.close();
       await upstream.close();

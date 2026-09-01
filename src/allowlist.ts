@@ -30,13 +30,28 @@ export const ROUTE_BLOCKED_BODY = {
 
 const ALLOWED_EXACT = new Set<string>(ALLOWED_ROUTES);
 
+/** `%2e` / `%2f` / `%5c` (any case) rematerialize as `.` `/` `\` after decode. */
+const ENCODED_DOT_OR_SEPARATOR = /%(?:2[eEfF]|5[cC])/;
+
+export function splitPathAndQuery(rawUrl: string): { rawPath: string; query: string } {
+  const q = rawUrl.indexOf("?");
+  if (q === -1) return { rawPath: rawUrl || "/", query: "" };
+  return { rawPath: rawUrl.slice(0, q) || "/", query: rawUrl.slice(q + 1) };
+}
+
+/** True when the path (not query) contains percent-encoded `.`, `/`, or `\`. */
+export function rawPathHasEncodedSeparator(rawUrl: string): boolean {
+  const { rawPath } = splitPathAndQuery(rawUrl);
+  return ENCODED_DOT_OR_SEPARATOR.test(rawPath);
+}
+
 export function requestPathname(rawUrl: string): string {
-  const pathPart = rawUrl.split("?")[0] || "/";
-  let pathname = pathPart;
+  const { rawPath } = splitPathAndQuery(rawUrl);
+  let pathname = rawPath;
   try {
-    pathname = new URL(pathPart, "http://127.0.0.1").pathname;
+    pathname = new URL(rawPath, "http://127.0.0.1").pathname;
   } catch {
-    pathname = pathPart;
+    pathname = rawPath;
   }
 
   const parts: string[] = [];
@@ -56,6 +71,7 @@ export function requestPathname(rawUrl: string): string {
 }
 
 export function isAllowedRoute(rawUrl: string): boolean {
+  if (rawPathHasEncodedSeparator(rawUrl)) return false;
   const path = requestPathname(rawUrl);
   if (ALLOWED_EXACT.has(path)) return true;
   return path.startsWith("/v1/models/") && path.length > "/v1/models/".length;
@@ -99,19 +115,26 @@ export async function startAllowlistGate(opts: {
   });
 }
 
+function rejectRoute(res: ServerResponse): void {
+  res.writeHead(403, { "content-type": "application/json" });
+  res.end(JSON.stringify(ROUTE_BLOCKED_BODY));
+}
+
 function handleGateRequest(req: IncomingMessage, res: ServerResponse, upstreamPort: number): void {
   const raw = req.url ?? "/";
-  if (!isAllowedRoute(raw)) {
-    res.writeHead(403, { "content-type": "application/json" });
-    res.end(JSON.stringify(ROUTE_BLOCKED_BODY));
+  const { rawPath, query } = splitPathAndQuery(raw);
+  const canonical = requestPathname(rawPath);
+  if (rawPathHasEncodedSeparator(rawPath) || !isAllowedRoute(canonical)) {
+    rejectRoute(res);
     return;
   }
 
+  const path = query ? `${canonical}?${query}` : canonical;
   const proxy = httpRequest(
     {
       hostname: "127.0.0.1",
       port: upstreamPort,
-      path: raw,
+      path,
       method: req.method,
       headers: { ...req.headers, host: `127.0.0.1:${upstreamPort}` },
     },
