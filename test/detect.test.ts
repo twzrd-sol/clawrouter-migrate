@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { detectSurface } from "../src/detect.js";
+import { loadSolanaSeed } from "../src/wallet.js";
 
 describe("detectSurface", () => {
   it("prefers OpenRouter env", () => {
@@ -46,5 +47,16 @@ describe("detectSurface", () => {
 
   it("falls back to unknown", () => {
     expect(detectSurface({ env: {}, homedir: "/no/home" })).toEqual({ surface: "unknown" });
+  });
+});
+
+describe("loadSolanaSeed byte range", () => {
+  it("rejects integers outside 0-255 instead of wrapping them", () => {
+    expect(() =>
+      loadSolanaSeed({ env: { SOLANA_WALLET_KEY: JSON.stringify([256, ...Array(31).fill(1)]) } }),
+    ).toThrow(/0-255/);
+    expect(() =>
+      loadSolanaSeed({ env: { SOLANA_WALLET_KEY: JSON.stringify([-1, ...Array(31).fill(1)]) } }),
+    ).toThrow(/0-255/);
   });
 });
