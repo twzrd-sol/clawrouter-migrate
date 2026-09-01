@@ -18,6 +18,9 @@ describe("renderProfile", () => {
     expect(yaml).toContain("source: openrouter");
     expect(yaml).toContain("port: 8411");
     expect(yaml).toContain("partners: false");
+    expect(yaml).toContain("allowed_routes:");
+    expect(yaml).toContain("    - /v1/models");
+    expect(yaml).toContain("    - /v1/chat/completions");
     expect(yaml).toContain("free: { model: free/gpt-oss-120b, ok: true }");
     expect(yaml).toContain("ok: skip");
     expect(yaml).toContain('openai_base_url: "https://openrouter.ai/api/v1"');

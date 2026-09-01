@@ -12,6 +12,13 @@ export {
   listRecentSignatures,
   PAID_CANARY_MODEL,
 } from "./canary.js";
+export {
+  ALLOWED_ROUTES,
+  isAllowedRoute,
+  requestPathname,
+  ROUTE_BLOCKED_BODY,
+  startAllowlistGate,
+} from "./allowlist.js";
 export { startIsolatedProxy, sessionCap } from "./proxy.js";
 export { runMigrate, defaultDeps } from "./run.js";
 export { machineLine, humanBlock } from "./report.js";

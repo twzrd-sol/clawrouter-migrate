@@ -1,3 +1,4 @@
+import { ALLOWED_ROUTES } from "./allowlist.js";
 import type { CanaryFlag, Surface } from "./types.js";
 
 export type ProfileInput = {
@@ -28,6 +29,8 @@ export function renderProfile(input: ProfileInput): string {
     `  maxCostPerRequest: ${input.maxCostPerRequest}`,
     `  maxCostPerSession: ${input.maxCostPerSession}`,
     "  partners: false",
+    "  allowed_routes:",
+    ...ALLOWED_ROUTES.map((route) => `    - ${route}`),
     "canary:",
     `  free: { model: ${yamlScalar(input.free.model)}, ok: ${input.free.ok} }`,
     `  paid: { model: ${yamlScalar(input.paid.model)}, usdc: ${input.paid.usdc}, ok: ${yamlScalar(input.paid.ok)} }`,
