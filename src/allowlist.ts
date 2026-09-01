@@ -30,8 +30,12 @@ export const ROUTE_BLOCKED_BODY = {
 
 const ALLOWED_EXACT = new Set<string>(ALLOWED_ROUTES);
 
-/** `%2e` / `%2f` / `%5c` (any case) rematerialize as `.` `/` `\` after decode. */
-const ENCODED_DOT_OR_SEPARATOR = /%(?:2[eEfF]|5[cC])/;
+/**
+ * Percent-octets that rematerialize as `.` `/` `\` or a C0 / DEL control
+ * byte. Nested encodings (`%252e`) are peeled in `rawPathHasEncodedSeparator`.
+ */
+const ENCODED_UNSAFE_OCTET = /%(?:2[eEfF]|5[cC]|0[0-9a-fA-F]|1[0-9a-fA-F]|7[fF])/;
+const DECODE_PEEL_LIMIT = 8;
 
 export function splitPathAndQuery(rawUrl: string): { rawPath: string; query: string } {
   const q = rawUrl.indexOf("?");
@@ -39,33 +43,57 @@ export function splitPathAndQuery(rawUrl: string): { rawPath: string; query: str
   return { rawPath: rawUrl.slice(0, q) || "/", query: rawUrl.slice(q + 1) };
 }
 
-/** True when the path (not query) contains percent-encoded `.`, `/`, or `\`. */
+function peelDecode(value: string): string {
+  let current = value;
+  for (let i = 0; i < DECODE_PEEL_LIMIT; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      return current;
+    }
+    if (next === current) return current;
+    current = next;
+  }
+  return current;
+}
+
+/** True when the path (not query) percent-encodes `.`, `/`, `\`, or a control byte. */
 export function rawPathHasEncodedSeparator(rawUrl: string): boolean {
   const { rawPath } = splitPathAndQuery(rawUrl);
-  return ENCODED_DOT_OR_SEPARATOR.test(rawPath);
+  let current = rawPath;
+  for (let i = 0; i < DECODE_PEEL_LIMIT; i++) {
+    if (ENCODED_UNSAFE_OCTET.test(current)) return true;
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      return false;
+    }
+    if (next === current) return false;
+    current = next;
+  }
+  return true;
 }
 
 export function requestPathname(rawUrl: string): string {
   const { rawPath } = splitPathAndQuery(rawUrl);
-  let pathname = rawPath;
+  const peeled = peelDecode(rawPath);
+  let pathname = peeled;
   try {
-    pathname = new URL(rawPath, "http://127.0.0.1").pathname;
+    pathname = new URL(peeled, "http://127.0.0.1").pathname;
   } catch {
-    pathname = rawPath;
+    pathname = peeled;
   }
 
   const parts: string[] = [];
-  for (const seg of pathname.split("/")) {
+  for (const seg of pathname.split(/[/\\]+/)) {
     if (!seg || seg === ".") continue;
     if (seg === "..") {
       parts.pop();
       continue;
     }
-    try {
-      parts.push(decodeURIComponent(seg));
-    } catch {
-      parts.push(seg);
-    }
+    parts.push(seg);
   }
   return `/${parts.join("/")}`;
 }
@@ -122,27 +150,33 @@ function rejectRoute(res: ServerResponse): void {
 
 function handleGateRequest(req: IncomingMessage, res: ServerResponse, upstreamPort: number): void {
   const raw = req.url ?? "/";
-  const { rawPath, query } = splitPathAndQuery(raw);
-  const canonical = requestPathname(rawPath);
-  if (rawPathHasEncodedSeparator(rawPath) || !isAllowedRoute(canonical)) {
+  const { query } = splitPathAndQuery(raw);
+  if (!isAllowedRoute(raw)) {
     rejectRoute(res);
     return;
   }
 
+  const canonical = requestPathname(raw);
   const path = query ? `${canonical}?${query}` : canonical;
-  const proxy = httpRequest(
-    {
-      hostname: "127.0.0.1",
-      port: upstreamPort,
-      path,
-      method: req.method,
-      headers: { ...req.headers, host: `127.0.0.1:${upstreamPort}` },
-    },
-    (up) => {
-      res.writeHead(up.statusCode ?? 502, up.headers);
-      up.pipe(res);
-    },
-  );
+  let proxy;
+  try {
+    proxy = httpRequest(
+      {
+        hostname: "127.0.0.1",
+        port: upstreamPort,
+        path,
+        method: req.method,
+        headers: { ...req.headers, host: `127.0.0.1:${upstreamPort}` },
+      },
+      (up) => {
+        res.writeHead(up.statusCode ?? 502, up.headers);
+        up.pipe(res);
+      },
+    );
+  } catch {
+    rejectRoute(res);
+    return;
+  }
   proxy.on("error", () => {
     if (!res.headersSent) {
       res.writeHead(502, { "content-type": "application/json" });

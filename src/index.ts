@@ -15,10 +15,8 @@ export {
 export {
   ALLOWED_ROUTES,
   isAllowedRoute,
-  rawPathHasEncodedSeparator,
   requestPathname,
   ROUTE_BLOCKED_BODY,
-  splitPathAndQuery,
   startAllowlistGate,
 } from "./allowlist.js";
 export { startIsolatedProxy, sessionCap } from "./proxy.js";

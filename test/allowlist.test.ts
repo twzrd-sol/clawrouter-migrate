@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_ROUTES,
   isAllowedRoute,
+  requestPathname,
   ROUTE_BLOCKED_BODY,
   startAllowlistGate,
 } from "../src/allowlist.js";
@@ -69,6 +70,16 @@ function listen(
     server.on("error", reject);
   });
 }
+
+describe("requestPathname", () => {
+  it("collapses decoded separators so encoded slash-dot-dot cannot stay under /v1/models/", () => {
+    expect(requestPathname("/v1/models%2f../partner/settle")).toBe("/v1/partner/settle");
+    expect(requestPathname("/v1/models/%252e%252e/partner/settle")).toBe("/v1/partner/settle");
+    expect(requestPathname("/v1/models%5c..%5cpartner")).toBe("/v1/partner");
+    expect(requestPathname("/v1/models?foo=1")).toBe("/v1/models");
+    expect(requestPathname("/v1/%6d%6f%64%65%6c%73")).toBe("/v1/models");
+  });
+});
 
 describe("isAllowedRoute", () => {
   it("allows the OpenAI canary and common client paths", () => {
@@ -136,6 +147,9 @@ describe("isAllowedRoute", () => {
       "/v1/partner%2fsettle",
       "/v1/models/%2e%2e/%2e%2e/v1/partner/x",
       "/v1/models%5c..%5cpartner",
+      "/v1/models/%252e%252e/partner/settle",
+      "/v1/models/%252E",
+      "/v1/models/%0d%0aX",
     ];
     for (const route of encoded) {
       expect(isAllowedRoute(route), route).toBe(false);
@@ -215,6 +229,10 @@ describe("startAllowlistGate", () => {
         "/v1/%2fpartner/settle",
         "/v1/chat%2fcompletions",
         "/v1/partner%2fsettle",
+        "/v1/models/%252e%252e/partner/settle",
+        "/v1/models/%252E",
+        "/v1/models%5c..%5cpartner",
+        "/v1/models/%0d%0aX",
       ];
       const beforeHits = [...upstream.hits];
       for (const path of attempts) {
