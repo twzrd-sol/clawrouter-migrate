@@ -162,7 +162,11 @@ export async function signatureMatchesUsdc(signature: string, owner: string, amo
   return Math.abs(debit - amountUsd) < 1e-6;
 }
 
-/** New signature after `before`, optionally confirmed by USDC debit. Never returns a pre-existing latest tx. */
+/**
+ * New signature after `before`, confirmed by a matching USDC debit — a known
+ * positive `amountUsd` is required, so an unparsed amount yields no receipt
+ * rather than a guess. Never returns a pre-existing latest tx.
+ */
 export async function findCanarySignature(input: {
   solanaAddress: string;
   before: string[];

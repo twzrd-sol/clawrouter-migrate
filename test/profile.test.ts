@@ -26,6 +26,19 @@ describe("renderProfile", () => {
     expect(yaml).toContain('openai_base_url: "https://openrouter.ai/api/v1"');
   });
 
+  it("renders an unparsed paid amount as unknown, not $0", () => {
+    const yaml = renderProfile({
+      surface: "openai",
+      port: 8411,
+      maxCostPerRequest: 0.05,
+      maxCostPerSession: 0.05,
+      free: { model: "free/gpt-oss-120b", ok: true },
+      paid: { model: "deepseek/deepseek-chat", usdc: 0, ok: "ok", usdcKnown: false },
+    });
+    expect(yaml).toContain("usdc: unknown");
+    expect(yaml).not.toContain("usdc: 0,");
+  });
+
   it("names files from the timestamp", () => {
     expect(profileFilename(new Date("2026-09-01T06:00:00.000Z"))).toBe(
       "migrated-2026-09-01T06-00-00-000Z.profile.yaml",
