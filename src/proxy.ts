@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startAllowlistGate } from "./allowlist.js";
-import { assertPortAvailable, findFreePort, PRODUCTION_PROXY_PORT } from "./port.js";
+import { assertPortAvailable, PRODUCTION_PROXY_PORT } from "./port.js";
 import type { IsolatedHandle, StartIsolatedOpts } from "./types.js";
 
 /** Session cap must exceed the DeepSeek estimator (~$0.0012) or a $0.001 settle 429s. */
@@ -33,21 +33,30 @@ export async function startIsolatedProxy(
   process.env.HOME = tmpHome;
 
   try {
-    const advertised = opts.port ?? (await findFreePort());
-    if (advertised === PRODUCTION_PROXY_PORT) {
+    const requested = opts.port;
+    if (requested === PRODUCTION_PROXY_PORT) {
       throw new Error("refusing to bind the production ClawRouter port 8402");
     }
-    await assertPortAvailable(advertised);
-    const internal = await findFreePort(new Set([PRODUCTION_PROXY_PORT, advertised]));
+    if (requested !== undefined) await assertPortAvailable(requested);
 
+    // Port 0, never a pre-picked one. startProxy probes the port it is handed
+    // and silently *reuses* any listener answering /health — returning that
+    // proxy's wallet, ignoring our spend caps, and handing back a no-op
+    // close(). Finding a free port and then passing it leaves a window for a
+    // same-host process to occupy it first. Letting the kernel assign the port
+    // inside bind() closes that window: nothing can be listening on it yet.
     const upstream = hooks.startUpstream
-      ? await hooks.startUpstream({ port: internal })
-      : await startClawRouterUpstream(opts, internal);
+      ? await hooks.startUpstream({ port: 0 })
+      : await startClawRouterUpstream(opts, 0);
+    if (!upstream.port || upstream.port === PRODUCTION_PROXY_PORT) {
+      await upstream.close();
+      throw new Error(`upstream reported an unusable port ${upstream.port}`);
+    }
 
     let gate;
     try {
       gate = await startAllowlistGate({
-        listenPort: advertised,
+        listenPort: requested ?? 0,
         upstreamPort: upstream.port,
       });
     } catch (err) {
@@ -119,7 +128,10 @@ async function startClawRouterUpstream(
 }
 
 function restoreHome(prevHome: string | undefined, tmpHome: string): void {
-  process.env.HOME = prevHome;
+  // Assigning `undefined` to process.env coerces to the string "undefined",
+  // which would leave the caller with a HOME pointing at a nonexistent dir.
+  if (prevHome === undefined) delete process.env.HOME;
+  else process.env.HOME = prevHome;
   try {
     rmSync(tmpHome, { recursive: true, force: true });
   } catch {

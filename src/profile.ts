@@ -7,7 +7,7 @@ export type ProfileInput = {
   maxCostPerRequest: number;
   maxCostPerSession: number;
   free: { model: string; ok: boolean };
-  paid: { model: string; usdc: number; ok: CanaryFlag };
+  paid: { model: string; usdc: number; ok: CanaryFlag; usdcKnown?: boolean };
   rollbackBaseUrl?: string;
 };
 
@@ -33,7 +33,9 @@ export function renderProfile(input: ProfileInput): string {
     ...ALLOWED_ROUTES.map((route) => `    - ${route}`),
     "canary:",
     `  free: { model: ${yamlScalar(input.free.model)}, ok: ${input.free.ok} }`,
-    `  paid: { model: ${yamlScalar(input.paid.model)}, usdc: ${input.paid.usdc}, ok: ${yamlScalar(input.paid.ok)} }`,
+    `  paid: { model: ${yamlScalar(input.paid.model)}, usdc: ${
+      input.paid.usdcKnown === false ? "unknown" : input.paid.usdc
+    }, ok: ${yamlScalar(input.paid.ok)} }`,
     "rollback:",
     `  openai_base_url: ${rollback ? yamlScalar(rollback) : '""'}`,
     "",

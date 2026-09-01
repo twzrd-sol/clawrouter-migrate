@@ -56,6 +56,10 @@ export type MigrateResult = {
   freeModel?: string;
   paidModel?: string;
   paidUsdc?: number;
+  /** False when a paid call succeeded but no signed-payment amount was parsed. */
+  paidUsdcKnown?: boolean;
+  /** Why paid was skipped, failed, or settled without a verifiable amount. */
+  paidReason?: string;
   rewrite: string;
   keepRunning: boolean;
 };

@@ -46,6 +46,7 @@ describe("startIsolatedProxy", () => {
       { port: advertised, ceiling: 0.05, paid: false, persistWallet: false },
       {
         startUpstream: async ({ port }) => {
+          expect(port).toBe(0);
           const server = createHttpServer((req, res) => {
             hits.push(`${req.method ?? "GET"} ${req.url ?? "/"}`);
             res.writeHead(200, { "content-type": "application/json" });
@@ -55,9 +56,11 @@ describe("startIsolatedProxy", () => {
             server.once("error", reject);
             server.listen(port, "127.0.0.1", () => resolve());
           });
+          const addr = server.address();
+          if (!addr || typeof addr === "string") throw new Error("no upstream port");
           return {
-            port,
-            baseUrl: `http://127.0.0.1:${port}`,
+            port: addr.port,
+            baseUrl: `http://127.0.0.1:${addr.port}`,
             walletAddress: "So11111111111111111111111111111111111111112",
             close: () =>
               new Promise<void>((done, fail) => {
@@ -85,5 +88,83 @@ describe("startIsolatedProxy", () => {
       await handle.close();
     }
     await expect(fetch(`${handle.baseUrl}/v1/models`)).rejects.toThrow();
+  });
+});
+
+describe("HOME isolation", () => {
+  it("unsets HOME again when it started unset, instead of leaving \"undefined\"", async () => {
+    const prev = process.env.HOME;
+    delete process.env.HOME;
+    try {
+      const handle = await startIsolatedProxy(
+        { ceiling: 0.05, paid: false, persistWallet: false },
+        {
+          startUpstream: async () => ({
+            port: 65535,
+            baseUrl: "http://127.0.0.1:65535",
+            walletAddress: "So11111111111111111111111111111111111111112",
+            close: async () => {},
+          }),
+        },
+      );
+      expect(process.env.HOME).toBeDefined();
+      await handle.close();
+      expect("HOME" in process.env).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.HOME;
+      else process.env.HOME = prev;
+    }
+  });
+});
+
+describe("internal port assignment", () => {
+  it("never hands the upstream a pre-picked port", async () => {
+    const seen: number[] = [];
+    const upstream = await listen();
+    const handle = await startIsolatedProxy(
+      { ceiling: 0.05, paid: false, persistWallet: false },
+      {
+        startUpstream: async ({ port }) => {
+          // A pre-picked port is a window: startProxy reuses whatever already
+          // answers /health there, ignoring our spend caps and returning a
+          // no-op close(). Only the kernel may choose it, inside bind().
+          seen.push(port);
+          return {
+            port: upstream.port,
+            baseUrl: `http://127.0.0.1:${upstream.port}`,
+            walletAddress: "So11111111111111111111111111111111111111112",
+            close: async () => {},
+          };
+        },
+      },
+    );
+    try {
+      expect(seen).toEqual([0]);
+      expect(handle.port).not.toBe(upstream.port);
+      expect(handle.port).not.toBe(0);
+    } finally {
+      await handle.close();
+      await upstream.close();
+    }
+  });
+
+  it("rejects an upstream that reports no usable port", async () => {
+    let closed = false;
+    await expect(
+      startIsolatedProxy(
+        { ceiling: 0.05, paid: false, persistWallet: false },
+        {
+          startUpstream: async () => ({
+            port: 0,
+            baseUrl: "http://127.0.0.1:0",
+            walletAddress: "So11111111111111111111111111111111111111112",
+            close: async () => {
+              closed = true;
+            },
+          }),
+        },
+      ),
+    ).rejects.toThrow(/unusable port/);
+    expect(closed).toBe(true);
   });
 });
