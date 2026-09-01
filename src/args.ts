@@ -53,6 +53,11 @@ export function parseArgs(argv: string[]): CliArgs {
   return args;
 }
 
+/** `--keep-running` must not `process.exit` after a successful canary — that kills the listen socket. */
+export function shouldExitProcess(opts: { keepRunning: boolean; code: number }): boolean {
+  return !(opts.keepRunning && opts.code === 0);
+}
+
 export const HELP = `clawrouter-migrate — prove a local ClawRouter path and print a rewrite snippet
 
 Usage:

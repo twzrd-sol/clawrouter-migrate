@@ -120,12 +120,18 @@ async function solanaRpc<T>(method: string, params: unknown[]): Promise<T | unde
   return data.result;
 }
 
-export async function listRecentSignatures(solanaAddress: string, limit = 8): Promise<string[]> {
-  const result = await solanaRpc<Array<{ signature?: string }>>("getSignaturesForAddress", [
-    solanaAddress,
-    { limit },
-  ]);
-  return (result ?? []).map((r) => r.signature).filter((s): s is string => Boolean(s));
+/** `null` means the RPC call failed — never treat that as an empty snapshot. */
+export async function listRecentSignatures(solanaAddress: string, limit = 8): Promise<string[] | null> {
+  try {
+    const result = await solanaRpc<Array<{ signature?: string }>>("getSignaturesForAddress", [
+      solanaAddress,
+      { limit },
+    ]);
+    if (!Array.isArray(result)) return null;
+    return result.map((r) => r.signature).filter((s): s is string => Boolean(s));
+  } catch {
+    return null;
+  }
 }
 
 type TokenBalance = {
@@ -163,10 +169,11 @@ export async function findCanarySignature(input: {
   amountUsd?: number;
 }): Promise<string | undefined> {
   const after = await listRecentSignatures(input.solanaAddress);
+  if (!after) return undefined;
   const newcomers = after.filter((sig) => !input.before.includes(sig));
   if (newcomers.length === 0) return undefined;
   const amount = input.amountUsd;
-  if (amount === undefined || amount <= 0) return newcomers[0];
+  if (amount === undefined || amount <= 0) return undefined;
   for (const sig of newcomers) {
     if (await signatureMatchesUsdc(sig, input.solanaAddress, amount)) return sig;
   }

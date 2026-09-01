@@ -65,7 +65,7 @@ export type RunDeps = {
   startProxy: (opts: StartIsolatedOpts) => Promise<IsolatedHandle>;
   runFreeCanary?: (baseUrl: string) => Promise<FreeCanary>;
   runPaidCanary?: (baseUrl: string, model?: string) => Promise<PaidCanary>;
-  listSignatures?: (solanaAddress: string) => Promise<string[]>;
+  listSignatures?: (solanaAddress: string) => Promise<string[] | null>;
   findReceipt?: (input: {
     solanaAddress: string;
     before: string[];

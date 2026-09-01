@@ -1,9 +1,9 @@
-export { parseArgs, HELP } from "./args.js";
+export { parseArgs, HELP, shouldExitProcess } from "./args.js";
 export { detectSurface } from "./detect.js";
 export { rewriteSnippet } from "./rewrite.js";
 export { renderProfile, profileFilename } from "./profile.js";
 export { loadSolanaSeed } from "./wallet.js";
-export { findFreePort, PRODUCTION_PROXY_PORT } from "./port.js";
+export { findFreePort, assertPortAvailable, PRODUCTION_PROXY_PORT } from "./port.js";
 export {
   runFreeCanary,
   runPaidCanary,

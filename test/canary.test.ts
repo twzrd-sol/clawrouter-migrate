@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { findCanarySignature, parseSignedPaymentLog, pollCanarySignature, runFreeCanary, runPaidCanary } from "../src/canary.js";
+import {
+  findCanarySignature,
+  listRecentSignatures,
+  parseSignedPaymentLog,
+  pollCanarySignature,
+  runFreeCanary,
+  runPaidCanary,
+} from "../src/canary.js";
 import { sessionCap } from "../src/proxy.js";
 import { loadSolanaSeed } from "../src/wallet.js";
 import { writeFileSync } from "node:fs";
@@ -85,12 +92,74 @@ describe("findCanarySignature", () => {
           result: [{ signature: "newSig" }, { signature: "oldSig" }],
         });
       }
+      if (body.method === "getTransaction") {
+        return jsonResponse(200, {
+          result: {
+            meta: {
+              preTokenBalances: [
+                { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", owner: "So11111111111111111111111111111111111111112", uiTokenAmount: { uiAmountString: "0.698" } },
+              ],
+              postTokenBalances: [
+                { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", owner: "So11111111111111111111111111111111111111112", uiTokenAmount: { uiAmountString: "0.697" } },
+              ],
+            },
+          },
+        });
+      }
       return jsonResponse(200, { result: null });
     }) as typeof fetch;
     try {
       await expect(
-        findCanarySignature({ solanaAddress: "So11111111111111111111111111111111111111112", before: ["oldSig"] }),
+        findCanarySignature({
+          solanaAddress: "So11111111111111111111111111111111111111112",
+          before: ["oldSig"],
+          amountUsd: 0.001,
+        }),
       ).resolves.toBe("newSig");
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("refuses the first newcomer when the signed amount is missing or zero", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+      if (body.method === "getSignaturesForAddress") {
+        return jsonResponse(200, { result: [{ signature: "newSig" }, { signature: "oldSig" }] });
+      }
+      return jsonResponse(200, { result: null });
+    }) as typeof fetch;
+    try {
+      await expect(
+        findCanarySignature({
+          solanaAddress: "So11111111111111111111111111111111111111112",
+          before: ["oldSig"],
+        }),
+      ).resolves.toBeUndefined();
+      await expect(
+        findCanarySignature({
+          solanaAddress: "So11111111111111111111111111111111111111112",
+          before: ["oldSig"],
+          amountUsd: 0,
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("returns undefined when the signature list RPC fails", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => jsonResponse(200, { error: { message: "rate limited" } })) as typeof fetch;
+    try {
+      await expect(
+        findCanarySignature({
+          solanaAddress: "So11111111111111111111111111111111111111112",
+          before: [],
+          amountUsd: 0.001,
+        }),
+      ).resolves.toBeUndefined();
     } finally {
       globalThis.fetch = orig;
     }
@@ -104,6 +173,42 @@ describe("findCanarySignature", () => {
       await expect(
         findCanarySignature({ solanaAddress: "So11111111111111111111111111111111111111112", before: ["oldSig"] }),
       ).resolves.toBeUndefined();
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+});
+
+describe("listRecentSignatures", () => {
+  it("returns null when the RPC call fails", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => jsonResponse(200, { error: { message: "rate limited" } })) as typeof fetch;
+    try {
+      await expect(
+        listRecentSignatures("So11111111111111111111111111111111111111112"),
+      ).resolves.toBeNull();
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("returns null when result is null or fetch throws", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => jsonResponse(200, { result: null })) as typeof fetch;
+    try {
+      await expect(
+        listRecentSignatures("So11111111111111111111111111111111111111112"),
+      ).resolves.toBeNull();
+    } finally {
+      globalThis.fetch = orig;
+    }
+    globalThis.fetch = (async () => {
+      throw new Error("network down");
+    }) as typeof fetch;
+    try {
+      await expect(
+        listRecentSignatures("So11111111111111111111111111111111111111112"),
+      ).resolves.toBeNull();
     } finally {
       globalThis.fetch = orig;
     }

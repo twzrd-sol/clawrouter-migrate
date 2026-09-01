@@ -20,7 +20,7 @@ function baseDeps(overrides: Partial<RunDeps> = {}): RunDeps {
     detect: () => ({ surface: "unknown" }),
     startProxy: async () => mockHandle(),
     runFreeCanary: async () => ({ model: "free/gpt-oss-120b", ok: true, status: 200 }),
-    runPaidCanary: async () => ({ model: "deepseek/deepseek-chat", usdc: 0, ok: "ok", receipt: "" }),
+    runPaidCanary: async () => ({ model: "deepseek/deepseek-chat", usdc: 0.001, ok: "ok", receipt: "" }),
     listSignatures: async () => ["oldSig"],
     findReceipt: async () => "Sig1111111111111111111111111111111111111111111111111111111111111111",
     writeProfile: (path, yaml) => {
@@ -106,6 +106,54 @@ describe("runMigrate", () => {
     await runMigrate(parseArgs(["--persist-wallet"]), deps);
     expect(Object.keys(written)).toHaveLength(1);
     expect(Object.values(written)[0]).toContain("test mnemonic never printed");
+  });
+
+  it("does not attach a receipt when the before-snapshot RPC fails", async () => {
+    let receiptCalls = 0;
+    const deps = baseDeps({
+      env: { SOLANA_WALLET_KEY: "aa".repeat(32) },
+      listSignatures: async () => null,
+      findReceipt: async () => {
+        receiptCalls += 1;
+        return "shouldNotUse";
+      },
+    });
+    const result = await runMigrate(parseArgs(["--paid"]), deps);
+    expect(result.paid).toBe("ok");
+    expect(result.receipt).toBe("");
+    expect(receiptCalls).toBe(0);
+  });
+
+  it("leaves the isolated proxy open on --keep-running after success", async () => {
+    let closed = false;
+    const deps = baseDeps({
+      startProxy: async () => ({
+        ...mockHandle(),
+        close: async () => {
+          closed = true;
+        },
+      }),
+    });
+    const result = await runMigrate(parseArgs(["--keep-running"]), deps);
+    expect(result.keepRunning).toBe(true);
+    expect(closed).toBe(false);
+  });
+
+  it("closes the proxy on --keep-running when the free canary fails", async () => {
+    let closed = false;
+    const deps = baseDeps({
+      startProxy: async () => ({
+        ...mockHandle(),
+        close: async () => {
+          closed = true;
+        },
+      }),
+      runFreeCanary: async () => ({ model: "free/gpt-oss-120b", ok: false, status: 402 }),
+    });
+    const result = await runMigrate(parseArgs(["--keep-running"]), deps);
+    expect(result.keepRunning).toBe(false);
+    expect(result.free).toBe("fail");
+    expect(closed).toBe(true);
   });
 
   it("fails when the paid canary fails", async () => {

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findFreePort, PRODUCTION_PROXY_PORT } from "./port.js";
+import { assertPortAvailable, findFreePort, PRODUCTION_PROXY_PORT } from "./port.js";
 import type { IsolatedHandle, StartIsolatedOpts } from "./types.js";
 
 /** Session cap must exceed the DeepSeek estimator (~$0.0012) or a $0.001 settle 429s. */
@@ -22,6 +22,7 @@ export async function startIsolatedProxy(opts: StartIsolatedOpts): Promise<Isola
     if (port === PRODUCTION_PROXY_PORT) {
       throw new Error("refusing to bind the production ClawRouter port 8402");
     }
+    await assertPortAvailable(port);
 
     const cap = sessionCap(opts.ceiling);
     const spend = new claw.SpendControl({ storage: new claw.InMemorySpendControlStorage() });

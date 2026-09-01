@@ -24,7 +24,7 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 
 ## Isolation guarantees
 
-- Unused listen port; refuses the default production port 8402
+- Unused listen port; refuses the default production port 8402 and refuses `--port` if something is already listening (the peer library would otherwise reuse that process)
 - In-memory spend policy (does not write `~/.openclaw/blockrun/spending.json`)
 - Temporary `HOME` so accidental persistence stays off the operator home
 - Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, gitignored). Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplied the paid signer — that flag must not write a different generated mnemonic.
@@ -35,7 +35,7 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 
 Paid ceilings get estimator slack: a strict `$0.001` run cap 429s on a `$0.0012` estimate. The session cap is `max(--ceiling, 0.002)`.
 
-`ProxyOptions.onPayment` is not treated as a receipt. The signed-payment log supplies the USD amount. A Solscan link is attached only when a **new** signature appears after the paid call and (when the amount is known) the USDC debit matches — not merely the wallet’s latest historical transaction.
+`ProxyOptions.onPayment` is not treated as a receipt. The signed-payment log supplies the USD amount. A Solscan link is attached only when the before-snapshot RPC succeeds, a **new** signature appears after the paid call, and the USDC debit matches that amount — not the wallet’s latest historical transaction, and never when the snapshot failed (that would make old txs look new).
 
 ## Paid wallet
 

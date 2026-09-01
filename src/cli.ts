@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-import { HELP, parseArgs } from "./args.js";
+import { HELP, parseArgs, shouldExitProcess } from "./args.js";
 import { defaultDeps, runMigrate } from "./run.js";
 import { humanBlock, machineLine } from "./report.js";
 
-async function main(): Promise<number> {
+async function main(): Promise<{ code: number; keepRunning: boolean }> {
   let args;
   try {
     args = parseArgs(process.argv.slice(2));
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);
-    return 1;
+    return { code: 1, keepRunning: false };
   }
 
   if (args.help) {
     console.log(HELP);
-    return 0;
+    return { code: 0, keepRunning: false };
   }
 
   try {
@@ -30,13 +30,15 @@ async function main(): Promise<number> {
         console.log(result.rewrite);
       }
     }
-    if (result.free === "fail" || result.paid === "fail") return 1;
-    return 0;
+    const code = result.free === "fail" || result.paid === "fail" ? 1 : 0;
+    return { code, keepRunning: result.keepRunning };
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);
-    return 1;
+    return { code: 1, keepRunning: false };
   }
 }
 
-const code = await main();
-process.exit(code);
+const { code, keepRunning } = await main();
+if (shouldExitProcess({ keepRunning, code })) {
+  process.exit(code);
+}

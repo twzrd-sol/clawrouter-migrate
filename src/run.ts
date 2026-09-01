@@ -39,7 +39,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
 
   let closed = false;
   const close = async () => {
-    if (closed || args.keepRunning) return;
+    if (closed) return;
     closed = true;
     await handle.close();
   };
@@ -74,16 +74,25 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
 
     if (args.paid && solanaSeed) {
       const address = handle.solanaAddress ?? handle.walletAddress;
-      const before =
-        (await deps.listSignatures?.(address)) ??
-        (handle.solanaAddress ? await listRecentSignatures(handle.solanaAddress) : []);
+      let before: string[] | null = null;
+      try {
+        before = deps.listSignatures
+          ? await deps.listSignatures(address)
+          : handle.solanaAddress
+            ? await listRecentSignatures(handle.solanaAddress)
+            : null;
+      } catch {
+        before = null;
+      }
       const captured = await withConsoleCapture(() => paidFn(handle.baseUrl));
       paid = captured.value;
       const signed = captured.lines.map(parseSignedPaymentLog).find((n) => n !== undefined);
       if (signed !== undefined) paid.usdc = signed;
-      if (paid.ok === "ok" || signed !== undefined) {
+      if (before !== null && paid.usdc > 0 && (paid.ok === "ok" || signed !== undefined)) {
         // Receipt attribution whenever money moved, even if the chat request
         // itself failed; polling because RPC indexing lags settlement.
+        // A failed before-snapshot is not treated as [] — that would make
+        // historical txs look new.
         const sig = await (deps.findReceipt ?? pollCanarySignature)({
           solanaAddress: address,
           before,
