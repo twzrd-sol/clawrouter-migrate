@@ -22,6 +22,11 @@ function parseSecret(raw: string, source: string): Uint8Array {
     if (!Array.isArray(parsed) || !parsed.every((n) => Number.isInteger(n))) {
       throw new Error(`${source} must be a JSON array of integers`);
     }
+    // Uint8Array.from truncates silently: 256 becomes 0, -1 becomes 255. A
+    // wrapped byte is a different, unrecoverable key, so reject instead.
+    if (!parsed.every((n) => (n as number) >= 0 && (n as number) <= 255)) {
+      throw new Error(`${source} must contain byte values 0-255`);
+    }
     if (parsed.length !== 32 && parsed.length !== 64) {
       throw new Error(`${source} must be a 32- or 64-byte Solana secret`);
     }
