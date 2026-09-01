@@ -2,9 +2,9 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "./args.js";
 import {
-  findCanarySignature,
   listRecentSignatures,
   parseSignedPaymentLog,
+  pollCanarySignature,
   PAID_CANARY_MODEL,
   runFreeCanary,
   runPaidCanary,
@@ -13,7 +13,7 @@ import {
 import { detectSurface } from "./detect.js";
 import { withConsoleCapture } from "./logs.js";
 import { profileFilename, renderProfile } from "./profile.js";
-import { startIsolatedProxy } from "./proxy.js";
+import { sessionCap, startIsolatedProxy } from "./proxy.js";
 import { rewriteSnippet } from "./rewrite.js";
 import type { CliArgs, MigrateResult, PaidCanary, RunDeps } from "./types.js";
 import { loadSolanaSeed } from "./wallet.js";
@@ -53,6 +53,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
         proxy: handle.baseUrl,
         wallet: handle.walletAddress,
         ceiling: args.ceiling,
+        effectiveSessionCap: sessionCap(args.ceiling),
         free: "fail",
         paid: "skip",
         receipt: "",
@@ -80,8 +81,10 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       paid = captured.value;
       const signed = captured.lines.map(parseSignedPaymentLog).find((n) => n !== undefined);
       if (signed !== undefined) paid.usdc = signed;
-      if (paid.ok === "ok") {
-        const sig = await (deps.findReceipt ?? findCanarySignature)({
+      if (paid.ok === "ok" || signed !== undefined) {
+        // Receipt attribution whenever money moved, even if the chat request
+        // itself failed; polling because RPC indexing lags settlement.
+        const sig = await (deps.findReceipt ?? pollCanarySignature)({
           solanaAddress: address,
           before,
           amountUsd: paid.usdc,
@@ -97,6 +100,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
         proxy: handle.baseUrl,
         wallet: handle.walletAddress,
         ceiling: args.ceiling,
+        effectiveSessionCap: sessionCap(args.ceiling),
         free: "ok",
         paid: "fail",
         receipt: paid.receipt,
@@ -138,6 +142,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
       proxy: handle.baseUrl,
       wallet: handle.walletAddress,
       ceiling: args.ceiling,
+      effectiveSessionCap: sessionCap(args.ceiling),
       free: "ok",
       paid: paid.ok,
       receipt: paid.receipt,

@@ -173,6 +173,29 @@ export async function findCanarySignature(input: {
   return undefined;
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Poll `findCanarySignature` — public RPC indexing can lag ~10s behind settlement,
+ * so a single lookup right after the canary call reads a false zero.
+ */
+export async function pollCanarySignature(input: {
+  solanaAddress: string;
+  before: string[];
+  amountUsd?: number;
+  attempts?: number;
+  delayMs?: number;
+}): Promise<string | undefined> {
+  const attempts = input.attempts ?? 6;
+  const delayMs = input.delayMs ?? 2000;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const sig = await findCanarySignature(input);
+    if (sig) return sig;
+    if (attempt < attempts - 1) await sleep(delayMs);
+  }
+  return undefined;
+}
+
 export function solscanUrl(signature: string): string {
   return `https://solscan.io/tx/${signature}`;
 }

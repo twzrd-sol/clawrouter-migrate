@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findCanarySignature, parseSignedPaymentLog, runFreeCanary, runPaidCanary } from "../src/canary.js";
+import { findCanarySignature, parseSignedPaymentLog, pollCanarySignature, runFreeCanary, runPaidCanary } from "../src/canary.js";
 import { sessionCap } from "../src/proxy.js";
 import { loadSolanaSeed } from "../src/wallet.js";
 import { writeFileSync } from "node:fs";
@@ -114,6 +114,55 @@ describe("sessionCap", () => {
   it("raises a $0.001 ceiling so the estimator can clear", () => {
     expect(sessionCap(0.001)).toBe(0.002);
     expect(sessionCap(0.05)).toBe(0.05);
+  });
+});
+
+describe("pollCanarySignature", () => {
+  it("retries until the settlement signature is indexed", async () => {
+    const orig = globalThis.fetch;
+    let sigCalls = 0;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+      if (body.method === "getSignaturesForAddress") {
+        sigCalls++;
+        return jsonResponse(200, { result: sigCalls < 2 ? [] : [{ signature: "lateSig" }] });
+      }
+      if (body.method === "getTransaction") {
+        return jsonResponse(200, {
+          result: {
+            meta: {
+              preTokenBalances: [
+                { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", owner: "So11111111111111111111111111111111111111112", uiTokenAmount: { uiAmountString: "0.698" } },
+              ],
+              postTokenBalances: [
+                { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", owner: "So11111111111111111111111111111111111111112", uiTokenAmount: { uiAmountString: "0.697" } },
+              ],
+            },
+          },
+        });
+      }
+      return jsonResponse(200, { result: null });
+    }) as typeof fetch;
+    try {
+      await expect(
+        pollCanarySignature({ solanaAddress: "So11111111111111111111111111111111111111112", before: [], amountUsd: 0.001, attempts: 3, delayMs: 1 }),
+      ).resolves.toBe("lateSig");
+      expect(sigCalls).toBeGreaterThanOrEqual(2);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("gives up after the attempt budget", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => jsonResponse(200, { result: [] })) as typeof fetch;
+    try {
+      await expect(
+        pollCanarySignature({ solanaAddress: "So11111111111111111111111111111111111111112", before: [], attempts: 2, delayMs: 1 }),
+      ).resolves.toBeUndefined();
+    } finally {
+      globalThis.fetch = orig;
+    }
   });
 });
 

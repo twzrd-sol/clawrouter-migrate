@@ -47,6 +47,8 @@ export type MigrateResult = {
   proxy: string;
   wallet: string;
   ceiling: number;
+  /** Session cap actually enforced (may exceed ceiling to clear the provider estimator). */
+  effectiveSessionCap?: number;
   free: CanaryFlag;
   paid: CanaryFlag;
   receipt: string;

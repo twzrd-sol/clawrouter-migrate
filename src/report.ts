@@ -20,6 +20,9 @@ export function humanBlock(result: MigrateResult): string {
     `  proxy:    ${result.proxy}`,
     `  wallet:   ${result.wallet}`,
     `  ceiling:  ${result.ceiling}`,
+    ...(result.effectiveSessionCap !== undefined && result.effectiveSessionCap > result.ceiling
+      ? [`  note:     session cap raised to $${result.effectiveSessionCap} (provider estimator minimum)`]
+      : []),
     `  free:     ${result.free}${result.freeModel ? ` (${result.freeModel})` : ""}`,
     `  paid:     ${result.paid}${result.paidModel ? ` (${result.paidModel})` : ""}`,
     `  receipt:  ${result.receipt || "-"}`,

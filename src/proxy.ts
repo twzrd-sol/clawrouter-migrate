@@ -10,26 +10,28 @@ export function sessionCap(ceiling: number): number {
 }
 
 export async function startIsolatedProxy(opts: StartIsolatedOpts): Promise<IsolatedHandle & { tmpHome: string }> {
-  const claw = await import("@blockrun/clawrouter");
-  const port = opts.port ?? (await findFreePort());
-  if (port === PRODUCTION_PROXY_PORT) {
-    throw new Error("refusing to bind the production ClawRouter port 8402");
-  }
-
-  const cap = sessionCap(opts.ceiling);
-  const spend = new claw.SpendControl({ storage: new claw.InMemorySpendControlStorage() });
-  spend.setLimit("perRequest", cap);
-  spend.setLimit("session", cap);
-
-  const mnemonic = claw.generateWalletMnemonic();
-  const keys = claw.deriveAllKeys(mnemonic);
-  const solanaBytes = opts.solanaPrivateKeyBytes ?? keys.solanaPrivateKeyBytes;
-
   const tmpHome = mkdtempSync(join(tmpdir(), "clawrouter-migrate-"));
   const prevHome = process.env.HOME;
   process.env.HOME = tmpHome;
 
   try {
+    // Import only after HOME is redirected: the peer lib resolves its
+    // ~/.openclaw log/response dirs from homedir() at module-init time.
+    const claw = await import("@blockrun/clawrouter");
+    const port = opts.port ?? (await findFreePort());
+    if (port === PRODUCTION_PROXY_PORT) {
+      throw new Error("refusing to bind the production ClawRouter port 8402");
+    }
+
+    const cap = sessionCap(opts.ceiling);
+    const spend = new claw.SpendControl({ storage: new claw.InMemorySpendControlStorage() });
+    spend.setLimit("perRequest", cap);
+    spend.setLimit("session", cap);
+
+    const mnemonic = claw.generateWalletMnemonic();
+    const keys = claw.deriveAllKeys(mnemonic);
+    const solanaBytes = opts.solanaPrivateKeyBytes ?? keys.solanaPrivateKeyBytes;
+
     const handle = await claw.startProxy({
       wallet: { key: keys.evmPrivateKey, solanaPrivateKeyBytes: solanaBytes },
       port,
@@ -65,6 +67,11 @@ export async function startIsolatedProxy(opts: StartIsolatedOpts): Promise<Isola
     };
   } catch (err) {
     process.env.HOME = prevHome;
+    try {
+      rmSync(tmpHome, { recursive: true, force: true });
+    } catch {
+      // isolated temp dir is best-effort
+    }
     throw err;
   }
 }
