@@ -1,6 +1,6 @@
 {
   "name": "@wzrd_sol/clawrouter-migrate",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "One-command ClawRouter canary: detect surface, prove free (and optional paid) routing, write a profile and rewrite snippet.",
   "type": "module",
   "main": "dist/index.js",
@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "npm run build && npm run typecheck && npm test",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -42,7 +43,7 @@
     "url": "git+https://github.com/twzrd-sol/clawrouter-migrate.git"
   },
   "peerDependencies": {
-    "@blockrun/clawrouter": ">=0.12.249"
+    "@blockrun/clawrouter": ">=0.12.249 <0.13.0"
   },
   "devDependencies": {
     "@blockrun/clawrouter": "^0.12.249",

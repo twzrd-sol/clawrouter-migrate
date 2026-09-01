@@ -1,5 +1,9 @@
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseArgs } from "../src/args.js";
+import { humanBlock } from "../src/report.js";
 import { runMigrate } from "../src/run.js";
 import type { IsolatedHandle, RunDeps } from "../src/types.js";
 
@@ -170,5 +174,58 @@ describe("runMigrate", () => {
     const result = await runMigrate(parseArgs(["--paid"]), deps);
     expect(result.paid).toBe("fail");
     expect(result.profile).toBe("");
+  });
+});
+
+describe("paid amount attribution", () => {
+  it("flags an ok paid canary whose amount never parsed", async () => {
+    const deps = baseDeps({
+      env: { SOLANA_WALLET_KEY: "aa".repeat(32) },
+      runPaidCanary: async () => ({ model: "deepseek/deepseek-chat", usdc: 0, ok: "ok", receipt: "" }),
+      findReceipt: async () => undefined,
+    });
+    const result = await runMigrate(parseArgs(["--paid"]), deps);
+    expect(result.paid).toBe("ok");
+    expect(result.paidUsdcKnown).toBe(false);
+    expect(result.receipt).toBe("");
+    // @ts-expect-error test helper
+    const yaml = Object.values(deps.written as Record<string, string>).join("\n");
+    expect(yaml).toContain("usdc: unknown");
+    expect(humanBlock(result)).toContain("spend is unverified");
+  });
+
+  it("leaves the flag true when the amount is known", async () => {
+    const deps = baseDeps({ env: { SOLANA_WALLET_KEY: "aa".repeat(32) } });
+    const result = await runMigrate(parseArgs(["--paid"]), deps);
+    expect(result.paidUsdcKnown).toBe(true);
+    expect(humanBlock(result)).not.toContain("spend is unverified");
+  });
+});
+
+describe("persist-wallet write", () => {
+  it("refuses to overwrite an existing wallet path", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "clawrouter-wallet-test-"));
+    const deps = baseDeps({ cwd: dir, persistWallet: undefined });
+    try {
+      const name = "migrated-2026-09-01T06-00-00-000Z.wallet.json";
+      writeFileSync(join(dir, name), "pre-existing", { mode: 0o644 });
+      await expect(runMigrate(parseArgs(["--persist-wallet"]), deps)).rejects.toThrow(/EEXIST/);
+      expect(readFileSync(join(dir, name), "utf8")).toBe("pre-existing");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("writes the mnemonic 0600 when the path is free", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "clawrouter-wallet-test-"));
+    const deps = baseDeps({ cwd: dir, persistWallet: undefined });
+    try {
+      const result = await runMigrate(parseArgs(["--persist-wallet"]), deps);
+      expect(result.free).toBe("ok");
+      const walletPath = join(dir, "migrated-2026-09-01T06-00-00-000Z.wallet.json");
+      expect(statSync(walletPath).mode & 0o777).toBe(0o600);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
