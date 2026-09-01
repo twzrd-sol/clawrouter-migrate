@@ -37,7 +37,7 @@ export type IsolatedHandle = {
   baseUrl: string;
   walletAddress: string;
   solanaAddress?: string;
-  /** Present only when --persist-wallet. Never print this. */
+  /** Ephemeral mnemonic, only when --persist-wallet and no supplied paid seed. Never print. */
   mnemonic?: string;
   close: () => Promise<void>;
 };
@@ -63,7 +63,12 @@ export type RunDeps = {
   startProxy: (opts: StartIsolatedOpts) => Promise<IsolatedHandle>;
   runFreeCanary?: (baseUrl: string) => Promise<FreeCanary>;
   runPaidCanary?: (baseUrl: string, model?: string) => Promise<PaidCanary>;
-  findReceipt?: (solanaAddress: string) => Promise<string | undefined>;
+  listSignatures?: (solanaAddress: string) => Promise<string[]>;
+  findReceipt?: (input: {
+    solanaAddress: string;
+    before: string[];
+    amountUsd?: number;
+  }) => Promise<string | undefined>;
   writeProfile?: (path: string, yaml: string) => void;
   persistWallet?: (path: string, contents: string) => void;
   cwd?: string;

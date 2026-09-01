@@ -27,7 +27,7 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 - Unused listen port; refuses the default production port 8402
 - In-memory spend policy (does not write `~/.openclaw/blockrun/spending.json`)
 - Temporary `HOME` so accidental persistence stays off the operator home
-- Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, gitignored)
+- Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, gitignored). Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplied the paid signer — that flag must not write a different generated mnemonic.
 - Response cache off so the canary is a real request
 - Never prints key material
 - Detected OpenRouter / OpenAI keys are ignored and never uploaded
@@ -35,7 +35,7 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 
 Paid ceilings get estimator slack: a strict `$0.001` run cap 429s on a `$0.0012` estimate. The session cap is `max(--ceiling, 0.002)`.
 
-`ProxyOptions.onPayment` is not treated as a receipt. Signed-payment logs plus a Solscan link are used instead.
+`ProxyOptions.onPayment` is not treated as a receipt. The signed-payment log supplies the USD amount. A Solscan link is attached only when a **new** signature appears after the paid call and (when the amount is known) the USDC debit matches — not merely the wallet’s latest historical transaction.
 
 ## Paid wallet
 

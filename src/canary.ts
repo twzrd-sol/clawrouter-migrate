@@ -107,19 +107,70 @@ export function parseSignedPaymentLog(line: string): number | undefined {
   return Number.isFinite(amount) ? amount : undefined;
 }
 
-export async function findLatestSignature(solanaAddress: string): Promise<string | undefined> {
-  const res = await fetch("https://api.mainnet-beta.solana.com", {
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const RPC_URL = "https://api.mainnet-beta.solana.com";
+
+async function solanaRpc<T>(method: string, params: unknown[]): Promise<T | undefined> {
+  const res = await fetch(RPC_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getSignaturesForAddress",
-      params: [solanaAddress, { limit: 1 }],
-    }),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
-  const data = (await res.json()) as { result?: Array<{ signature?: string }> };
-  return data.result?.[0]?.signature;
+  const data = (await res.json()) as { result?: T };
+  return data.result;
+}
+
+export async function listRecentSignatures(solanaAddress: string, limit = 8): Promise<string[]> {
+  const result = await solanaRpc<Array<{ signature?: string }>>("getSignaturesForAddress", [
+    solanaAddress,
+    { limit },
+  ]);
+  return (result ?? []).map((r) => r.signature).filter((s): s is string => Boolean(s));
+}
+
+type TokenBalance = {
+  mint: string;
+  owner?: string;
+  uiTokenAmount?: { uiAmount?: number | null; uiAmountString?: string };
+};
+
+function usdcDebit(owner: string, pre: TokenBalance[] | undefined, post: TokenBalance[] | undefined): number | undefined {
+  const read = (rows: TokenBalance[] | undefined) => {
+    const row = (rows ?? []).find((b) => b.mint === USDC_MINT && b.owner === owner);
+    if (!row) return undefined;
+    const n = Number(row.uiTokenAmount?.uiAmountString ?? row.uiTokenAmount?.uiAmount);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const before = read(pre);
+  const after = read(post);
+  if (before === undefined || after === undefined) return undefined;
+  return before - after;
+}
+
+export async function signatureMatchesUsdc(signature: string, owner: string, amountUsd: number): Promise<boolean> {
+  const tx = await solanaRpc<{
+    meta?: { preTokenBalances?: TokenBalance[]; postTokenBalances?: TokenBalance[] };
+  }>("getTransaction", [signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }]);
+  const debit = usdcDebit(owner, tx?.meta?.preTokenBalances, tx?.meta?.postTokenBalances);
+  if (debit === undefined) return false;
+  return Math.abs(debit - amountUsd) < 1e-6;
+}
+
+/** New signature after `before`, optionally confirmed by USDC debit. Never returns a pre-existing latest tx. */
+export async function findCanarySignature(input: {
+  solanaAddress: string;
+  before: string[];
+  amountUsd?: number;
+}): Promise<string | undefined> {
+  const after = await listRecentSignatures(input.solanaAddress);
+  const newcomers = after.filter((sig) => !input.before.includes(sig));
+  if (newcomers.length === 0) return undefined;
+  const amount = input.amountUsd;
+  if (amount === undefined || amount <= 0) return newcomers[0];
+  for (const sig of newcomers) {
+    if (await signatureMatchesUsdc(sig, input.solanaAddress, amount)) return sig;
+  }
+  return undefined;
 }
 
 export function solscanUrl(signature: string): string {

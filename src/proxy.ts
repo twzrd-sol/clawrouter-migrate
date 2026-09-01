@@ -48,7 +48,7 @@ export async function startIsolatedProxy(opts: StartIsolatedOpts): Promise<Isola
       baseUrl: handle.baseUrl,
       walletAddress: display,
       solanaAddress: handle.solanaAddress,
-      mnemonic: opts.persistWallet ? mnemonic : undefined,
+      mnemonic: opts.persistWallet && !opts.solanaPrivateKeyBytes ? mnemonic : undefined,
       tmpHome,
       close: async () => {
         try {

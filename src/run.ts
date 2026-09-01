@@ -1,7 +1,15 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "./args.js";
-import { runFreeCanary, runPaidCanary, parseSignedPaymentLog, findLatestSignature, solscanUrl, PAID_CANARY_MODEL } from "./canary.js";
+import {
+  findCanarySignature,
+  listRecentSignatures,
+  parseSignedPaymentLog,
+  PAID_CANARY_MODEL,
+  runFreeCanary,
+  runPaidCanary,
+  solscanUrl,
+} from "./canary.js";
 import { detectSurface } from "./detect.js";
 import { withConsoleCapture } from "./logs.js";
 import { profileFilename, renderProfile } from "./profile.js";
@@ -64,14 +72,20 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
     };
 
     if (args.paid && solanaSeed) {
+      const address = handle.solanaAddress ?? handle.walletAddress;
+      const before =
+        (await deps.listSignatures?.(address)) ??
+        (handle.solanaAddress ? await listRecentSignatures(handle.solanaAddress) : []);
       const captured = await withConsoleCapture(() => paidFn(handle.baseUrl));
       paid = captured.value;
       const signed = captured.lines.map(parseSignedPaymentLog).find((n) => n !== undefined);
       if (signed !== undefined) paid.usdc = signed;
       if (paid.ok === "ok") {
-        const sig =
-          (await deps.findReceipt?.(handle.solanaAddress ?? handle.walletAddress)) ??
-          (handle.solanaAddress ? await findLatestSignature(handle.solanaAddress) : undefined);
+        const sig = await (deps.findReceipt ?? findCanarySignature)({
+          solanaAddress: address,
+          before,
+          amountUsd: paid.usdc,
+        });
         if (sig) paid.receipt = solscanUrl(sig);
       }
     }
@@ -108,7 +122,7 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
     });
     (deps.writeProfile ?? writeFileSync)(profilePath, yaml);
 
-    if (args.persistWallet && handle.mnemonic) {
+    if (args.persistWallet && handle.mnemonic && !solanaSeed) {
       const walletPath = join(cwd, profileName.replace(/\.profile\.yaml$/, ".wallet.json"));
       (deps.persistWallet ?? writeSecure)(
         walletPath,

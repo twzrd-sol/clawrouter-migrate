@@ -21,6 +21,7 @@ function baseDeps(overrides: Partial<RunDeps> = {}): RunDeps {
     startProxy: async () => mockHandle(),
     runFreeCanary: async () => ({ model: "free/gpt-oss-120b", ok: true, status: 200 }),
     runPaidCanary: async () => ({ model: "deepseek/deepseek-chat", usdc: 0, ok: "ok", receipt: "" }),
+    listSignatures: async () => ["oldSig"],
     findReceipt: async () => "Sig1111111111111111111111111111111111111111111111111111111111111111",
     writeProfile: (path, yaml) => {
       written[path] = yaml;
@@ -65,12 +66,46 @@ describe("runMigrate", () => {
   });
 
   it("records a paid receipt from the explorer helper", async () => {
+    let seenBefore: string[] | undefined;
     const deps = baseDeps({
       env: { SOLANA_WALLET_KEY: "aa".repeat(32) },
+      listSignatures: async () => ["alreadyOnChain"],
+      findReceipt: async (input) => {
+        seenBefore = input.before;
+        if (input.before.includes("alreadyOnChain")) {
+          return "newCanarySig";
+        }
+        return undefined;
+      },
     });
     const result = await runMigrate(parseArgs(["--paid", "--ceiling", "0.05"]), deps);
     expect(result.paid).toBe("ok");
-    expect(result.receipt).toContain("solscan.io/tx/");
+    expect(seenBefore).toEqual(["alreadyOnChain"]);
+    expect(result.receipt).toBe("https://solscan.io/tx/newCanarySig");
+  });
+
+  it("does not persist a generated mnemonic when a paid wallet was supplied", async () => {
+    const written: Record<string, string> = {};
+    const deps = baseDeps({
+      env: { SOLANA_WALLET_KEY: "aa".repeat(32) },
+      persistWallet: (path, contents) => {
+        written[path] = contents;
+      },
+    });
+    await runMigrate(parseArgs(["--paid", "--persist-wallet"]), deps);
+    expect(Object.keys(written)).toEqual([]);
+  });
+
+  it("persists the ephemeral mnemonic only when no paid wallet was supplied", async () => {
+    const written: Record<string, string> = {};
+    const deps = baseDeps({
+      persistWallet: (path, contents) => {
+        written[path] = contents;
+      },
+    });
+    await runMigrate(parseArgs(["--persist-wallet"]), deps);
+    expect(Object.keys(written)).toHaveLength(1);
+    expect(Object.values(written)[0]).toContain("test mnemonic never printed");
   });
 
   it("fails when the paid canary fails", async () => {

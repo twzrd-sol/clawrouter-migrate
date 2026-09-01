@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSignedPaymentLog, runFreeCanary, runPaidCanary } from "../src/canary.js";
+import { findCanarySignature, parseSignedPaymentLog, runFreeCanary, runPaidCanary } from "../src/canary.js";
 import { sessionCap } from "../src/proxy.js";
 import { loadSolanaSeed } from "../src/wallet.js";
 import { writeFileSync } from "node:fs";
@@ -70,6 +70,43 @@ describe("parseSignedPaymentLog", () => {
         "[ClawRouter] Payment signed on Solana (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d) — $0.001000",
       ),
     ).toBe(0.001);
+  });
+});
+
+describe("findCanarySignature", () => {
+  it("returns only a signature that appeared after the snapshot", async () => {
+    const calls: string[] = [];
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string };
+      calls.push(body.method ?? "");
+      if (body.method === "getSignaturesForAddress") {
+        return jsonResponse(200, {
+          result: [{ signature: "newSig" }, { signature: "oldSig" }],
+        });
+      }
+      return jsonResponse(200, { result: null });
+    }) as typeof fetch;
+    try {
+      await expect(
+        findCanarySignature({ solanaAddress: "So11111111111111111111111111111111111111112", before: ["oldSig"] }),
+      ).resolves.toBe("newSig");
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("returns undefined when the only signatures predate the canary", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      jsonResponse(200, { result: [{ signature: "oldSig" }] })) as typeof fetch;
+    try {
+      await expect(
+        findCanarySignature({ solanaAddress: "So11111111111111111111111111111111111111112", before: ["oldSig"] }),
+      ).resolves.toBeUndefined();
+    } finally {
+      globalThis.fetch = orig;
+    }
   });
 });
 
