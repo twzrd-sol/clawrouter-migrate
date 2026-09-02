@@ -37,8 +37,8 @@ export type IsolatedHandle = {
   baseUrl: string;
   walletAddress: string;
   solanaAddress?: string;
-  /** Ephemeral mnemonic, only when --persist-wallet and no supplied paid seed. Never print. */
-  mnemonic?: string;
+  /** Ephemeral 32-byte Solana seed, only when --persist-wallet and no supplied paid seed. Never print. */
+  solanaSeed?: Uint8Array;
   close: () => Promise<void>;
 };
 

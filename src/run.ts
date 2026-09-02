@@ -136,20 +136,19 @@ export async function runMigrate(args: CliArgs, deps: RunDeps): Promise<MigrateR
     const yaml = renderProfile({
       surface: detected.surface,
       port: handle.port,
-      maxCostPerRequest: args.ceiling,
-      maxCostPerSession: Math.max(args.ceiling, 0.002),
+      // Both caps are what the proxy enforces, not the raw flag: below $0.002
+      // the estimator floor applies (see sessionCap).
+      maxCostPerRequest: sessionCap(args.ceiling),
+      maxCostPerSession: sessionCap(args.ceiling),
       free: { model: free.model, ok: true },
       paid: { model: paid.model, usdc: paid.usdc, ok: paid.ok, usdcKnown: paidUsdcKnown },
       rollbackBaseUrl: detected.rollbackBaseUrl,
     });
     (deps.writeProfile ?? writeFileSync)(profilePath, yaml);
 
-    if (args.persistWallet && handle.mnemonic && !solanaSeed) {
+    if (args.persistWallet && handle.solanaSeed && !solanaSeed) {
       const walletPath = join(cwd, profileName.replace(/\.profile\.yaml$/, ".wallet.json"));
-      (deps.persistWallet ?? writeSecure)(
-        walletPath,
-        JSON.stringify({ mnemonic: handle.mnemonic, address: handle.walletAddress }),
-      );
+      (deps.persistWallet ?? writeSecure)(walletPath, JSON.stringify(Array.from(handle.solanaSeed)));
     }
 
     const rewrite = rewriteSnippet(detected.surface, handle.port);

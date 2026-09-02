@@ -16,7 +16,7 @@ export type IsolatedUpstreamHandle = {
   baseUrl: string;
   walletAddress: string;
   solanaAddress?: string;
-  mnemonic?: string;
+  solanaSeed?: Uint8Array;
   close: () => Promise<void>;
 };
 
@@ -69,7 +69,7 @@ export async function startIsolatedProxy(
       baseUrl: gate.baseUrl,
       walletAddress: upstream.walletAddress,
       solanaAddress: upstream.solanaAddress,
-      mnemonic: upstream.mnemonic,
+      solanaSeed: upstream.solanaSeed,
       tmpHome,
       close: async () => {
         try {
@@ -122,7 +122,9 @@ async function startClawRouterUpstream(
     baseUrl: handle.baseUrl,
     walletAddress: handle.solanaAddress ?? handle.walletAddress,
     solanaAddress: handle.solanaAddress,
-    mnemonic: opts.persistWallet && !opts.solanaPrivateKeyBytes ? mnemonic : undefined,
+    // The seed, not the mnemonic: --wallet-file reads a JSON byte array, so
+    // the file this run writes must be one the next run can load.
+    solanaSeed: opts.persistWallet && !opts.solanaPrivateKeyBytes ? keys.solanaPrivateKeyBytes : undefined,
     close: () => handle.close(),
   };
 }

@@ -27,7 +27,7 @@ Free failure exits non-zero and does not claim migrated. Missing paid funds skip
 - Unused listen port; refuses the default production port 8402 and refuses `--port` if something is already listening (the peer library would otherwise reuse that process). `--port` is the **advertised** allowlist gate; ClawRouter itself binds a different loopback port.
 - In-memory spend policy (does not write `~/.openclaw/blockrun/spending.json`)
 - Temporary `HOME` so accidental persistence stays off the operator home
-- Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, written to the current directory — add it to that project's `.gitignore` yourself). Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplied the paid signer — that flag must not write a different generated mnemonic.
+- Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, written to the current directory — add it to that project's `.gitignore` yourself). The file is the same JSON byte array `--wallet-file` reads, so after funding the printed pubkey you re-run with `--paid --wallet-file <that file>`. Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplied the paid signer — that flag must not write a different generated seed.
 - Response cache off so the canary is a real request
 - Never prints key material
 - Detected OpenRouter / OpenAI keys are ignored and never uploaded

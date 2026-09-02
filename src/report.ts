@@ -13,6 +13,12 @@ export function machineLine(result: MigrateResult): string {
   ].join(" | ");
 }
 
+/** `--json` promises an object on stdout even when the run throws. */
+export function errorOutput(err: unknown, json: boolean): { stdout?: string; stderr?: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  return json ? { stdout: JSON.stringify({ error: message }) } : { stderr: message };
+}
+
 export function humanBlock(result: MigrateResult): string {
   const lines = [
     "ClawRouter migrate",
