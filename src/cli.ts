@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { HELP, parseArgs, shouldExitProcess } from "./args.js";
+import { redirectStdoutLogs } from "./logs.js";
 import { defaultDeps, runMigrate } from "./run.js";
 import { humanBlock, machineLine } from "./report.js";
 
@@ -18,9 +19,13 @@ async function main(): Promise<{ code: number; keepRunning: boolean }> {
   }
 
   try {
+    // --json promises a parseable stdout. The peer library's console.log
+    // chatter goes to stderr for the whole process — not just this call,
+    // because --keep-running keeps logging after the result is printed.
+    const emit = args.json ? redirectStdoutLogs() : console.log;
     const result = await runMigrate(args, defaultDeps());
     if (args.json) {
-      console.log(JSON.stringify(result, null, 2));
+      emit(JSON.stringify(result, null, 2));
     } else {
       console.log(humanBlock(result));
       console.log("");
