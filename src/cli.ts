@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { HELP, parseArgs, shouldExitProcess } from "./args.js";
+import { withStdoutQuiet } from "./logs.js";
 import { defaultDeps, runMigrate } from "./run.js";
 import { humanBlock, machineLine } from "./report.js";
 
@@ -18,7 +19,11 @@ async function main(): Promise<{ code: number; keepRunning: boolean }> {
   }
 
   try {
-    const result = await runMigrate(args, defaultDeps());
+    // --json promises a parseable stdout; the peer library's console.log
+    // chatter goes to stderr for the run so the JSON is the only thing printed.
+    const result = args.json
+      ? await withStdoutQuiet(() => runMigrate(args, defaultDeps()))
+      : await runMigrate(args, defaultDeps());
     if (args.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
