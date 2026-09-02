@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { profileFilename, renderProfile } from "../src/profile.js";
 import { rewriteSnippet } from "../src/rewrite.js";
-import { machineLine } from "../src/report.js";
+import { errorOutput, machineLine } from "../src/report.js";
 
 describe("renderProfile", () => {
   it("writes the v0 seed schema", () => {
@@ -72,3 +72,13 @@ describe("machineLine", () => {
     );
   });
 });
+
+describe("errorOutput", () => {
+  it("puts a JSON object on stdout under --json and plain text on stderr otherwise", () => {
+    const err = new Error("port 8402 is already in use");
+    expect(errorOutput(err, true)).toEqual({ stdout: JSON.stringify({ error: "port 8402 is already in use" }) });
+    expect(errorOutput(err, false)).toEqual({ stderr: "port 8402 is already in use" });
+    expect(errorOutput("plain string", true).stdout).toBe(JSON.stringify({ error: "plain string" }));
+  });
+});
+

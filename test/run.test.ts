@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { parseArgs } from "../src/args.js";
 import { humanBlock } from "../src/report.js";
 import { runMigrate } from "../src/run.js";
+import { loadSolanaSeed } from "../src/wallet.js";
 import type { IsolatedHandle, RunDeps } from "../src/types.js";
 
 function mockHandle(): IsolatedHandle {
@@ -13,7 +14,7 @@ function mockHandle(): IsolatedHandle {
     baseUrl: "http://127.0.0.1:8411",
     walletAddress: "So11111111111111111111111111111111111111112",
     solanaAddress: "So11111111111111111111111111111111111111112",
-    mnemonic: "test mnemonic never printed",
+    solanaSeed: Uint8Array.from({ length: 32 }, (_, i) => i),
     close: async () => {},
   };
 }
@@ -100,7 +101,7 @@ describe("runMigrate", () => {
     expect(Object.keys(written)).toEqual([]);
   });
 
-  it("persists the ephemeral mnemonic only when no paid wallet was supplied", async () => {
+  it("persists the ephemeral seed as a file --wallet-file can load back", async () => {
     const written: Record<string, string> = {};
     const deps = baseDeps({
       persistWallet: (path, contents) => {
@@ -109,7 +110,30 @@ describe("runMigrate", () => {
     });
     await runMigrate(parseArgs(["--persist-wallet"]), deps);
     expect(Object.keys(written)).toHaveLength(1);
-    expect(Object.values(written)[0]).toContain("test mnemonic never printed");
+    const contents = Object.values(written)[0];
+    expect(JSON.parse(contents)).toHaveLength(32);
+    // The round trip that was broken: the loader only reads byte arrays or hex.
+    const dir = mkdtempSync(join(tmpdir(), "clawrouter-seed-test-"));
+    try {
+      const file = join(dir, "seed.json");
+      writeFileSync(file, contents);
+      expect(Array.from(loadSolanaSeed({ walletFile: file }) ?? [])).toEqual(Array.from({ length: 32 }, (_, i) => i));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("profile reports the enforced caps, not a sub-floor --ceiling", async () => {
+    const written: Record<string, string> = {};
+    const deps = baseDeps({
+      writeProfile: (path, yaml) => {
+        written[path] = yaml;
+      },
+    });
+    await runMigrate(parseArgs(["--ceiling", "0.001"]), deps);
+    const yaml = Object.values(written)[0];
+    expect(yaml).toContain("maxCostPerRequest: 0.002");
+    expect(yaml).toContain("maxCostPerSession: 0.002");
   });
 
   it("does not attach a receipt when the before-snapshot RPC fails", async () => {
@@ -216,7 +240,7 @@ describe("persist-wallet write", () => {
     }
   });
 
-  it("writes the mnemonic 0600 when the path is free", async () => {
+  it("writes the seed 0600 when the path is free", async () => {
     const dir = mkdtempSync(join(tmpdir(), "clawrouter-wallet-test-"));
     const deps = baseDeps({ cwd: dir, persistWallet: undefined });
     try {
