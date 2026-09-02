@@ -1,41 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { withConsoleCapture, withStdoutQuiet } from "../src/logs.js";
+import { redirectStdoutLogs, withConsoleCapture } from "../src/logs.js";
 
-describe("withStdoutQuiet", () => {
-  it("routes console.log to stderr for the duration and restores it after", async () => {
-    const out: string[] = [];
-    const err: string[] = [];
-    const origLog = console.log;
-    const origErr = console.error;
-    console.log = (...a: unknown[]) => out.push(a.join(" "));
-    console.error = (...a: unknown[]) => err.push(a.join(" "));
+function captureConsole() {
+  const out: string[] = [];
+  const err: string[] = [];
+  const orig = { log: console.log, error: console.error };
+  console.log = (...a: unknown[]) => out.push(a.join(" "));
+  console.error = (...a: unknown[]) => err.push(a.join(" "));
+  return { out, err, restore: () => Object.assign(console, orig) };
+}
+
+describe("redirectStdoutLogs", () => {
+  it("sends later console.log to stderr and returns the real stdout writer", () => {
+    const c = captureConsole();
     try {
-      const value = await withStdoutQuiet(async () => {
-        console.log("[ClawRouter] Solana wallet: abc");
-        return 42;
-      });
-      console.log("after");
-      expect(value).toBe(42);
-      expect(out).toEqual(["after"]);
-      expect(err).toEqual(["[ClawRouter] Solana wallet: abc"]);
+      const emit = redirectStdoutLogs();
+      console.log("[ClawRouter] Solana wallet: abc"); // peer chatter
+      emit('{"free":"ok"}'); // the one thing stdout is for
+      console.log("[ClawRouter] Received model: free/x"); // --keep-running: logs after the result
+      expect(c.out).toEqual(['{"free":"ok"}']);
+      expect(c.err).toEqual(["[ClawRouter] Solana wallet: abc", "[ClawRouter] Received model: free/x"]);
     } finally {
-      console.log = origLog;
-      console.error = origErr;
+      c.restore();
     }
   });
 
-  it("still lets withConsoleCapture parse the signed-payment line while quiet", async () => {
-    const origErr = console.error;
-    console.error = () => {};
+  it("still lets withConsoleCapture parse the signed-payment line", async () => {
+    const c = captureConsole();
     try {
-      const { lines } = await withStdoutQuiet(() =>
-        withConsoleCapture(async () => {
-          console.log("[ClawRouter] Payment signed on solana — $0.001000");
-        }),
-      );
+      redirectStdoutLogs();
+      const { lines } = await withConsoleCapture(async () => {
+        console.log("[ClawRouter] Payment signed on solana — $0.001000");
+      });
       expect(lines).toEqual(["[ClawRouter] Payment signed on solana — $0.001000"]);
+      expect(c.out).toEqual([]);
     } finally {
-      console.error = origErr;
+      c.restore();
     }
   });
 });
