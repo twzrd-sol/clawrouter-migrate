@@ -68,7 +68,7 @@ Options:
   --paid              Run a pinned cheap paid canary after free succeeds
   --ceiling <usd>     Paid session/request ceiling (default 0.05, floor 0.002)
   --wallet-file <p>   Solana secret JSON (32- or 64-byte array). Never printed
-  --persist-wallet    Write a 0600 ephemeral mnemonic (skipped if --wallet-file or SOLANA_WALLET_KEY)
+  --persist-wallet    Write the ephemeral seed as a 0600 --wallet-file JSON array (skipped if a paid signer was supplied)
   --keep-running      Leave the isolated proxy up after the canary
   --port <n>          Isolated listen port (not 8402)
   --json              Machine-readable result object
