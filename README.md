@@ -4,7 +4,7 @@ One command that proves a local [ClawRouter](https://github.com/BlockRunAI/ClawR
 
 Published as `@wzrd_sol/clawrouter-migrate`; source lives at `twzrd-sol/clawrouter-migrate`. `npx` installs the latest npm release, which can lag this repository. The earlier unscoped `clawrouter-migrate@0.1.0` is unchanged. If BlockRun blesses the package it graduates to `@blockrun/clawrouter-migrate`, and later to a `clawrouter migrate` subcommand.
 
-Peer dependency: `@blockrun/clawrouter` `>=0.12.249 <0.13.0`. The free canary is proven on 0.12.264; the paid canary was last proven on 0.12.249. The tool never forks or patches ClawRouter — it drives the published library.
+Peer dependency: `@blockrun/clawrouter` `>=0.12.249 <0.13.0`. The free canary is proven on 0.12.267; the paid canary was last proven on 0.12.249. The tool never forks or patches ClawRouter — it drives the published library.
 
 ```bash
 npx @wzrd_sol/clawrouter-migrate
