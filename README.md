@@ -2,9 +2,9 @@
 
 One command that proves a local [ClawRouter](https://github.com/BlockRunAI/ClawRouter) path and prints a rewrite snippet for OpenRouter / OpenAI / OpenClaw clients.
 
-npm scope is `@wzrd_sol`. GitHub remains `twzrd-sol/clawrouter-migrate`. The earlier unscoped `clawrouter-migrate@0.1.0` is unchanged. If BlockRun blesses the package, this graduates to `@blockrun/clawrouter-migrate` and later `clawrouter migrate`.
+Published as `@wzrd_sol/clawrouter-migrate`; source lives at `twzrd-sol/clawrouter-migrate`. `npx` installs the latest npm release, which can lag this repository. The earlier unscoped `clawrouter-migrate@0.1.0` is unchanged. If BlockRun blesses the package it graduates to `@blockrun/clawrouter-migrate`, and later to a `clawrouter migrate` subcommand.
 
-Requires `@blockrun/clawrouter` **>= 0.12.249** (the floor that already ran free and paid canaries).
+Peer dependency: `@blockrun/clawrouter` `>=0.12.249 <0.13.0`. The free canary is proven on 0.12.264; the paid canary was last proven on 0.12.249. The tool never forks or patches ClawRouter — it drives the published library.
 
 ```bash
 npx @wzrd_sol/clawrouter-migrate
@@ -54,6 +54,17 @@ surface | proxy | wallet(pubkey only) | ceiling | free: ok|fail | paid: ok|skip|
 ```
 
 `--json` prints the same fields as an object.
+
+## Development
+
+```bash
+npm install
+npm test           # vitest
+npm run typecheck  # tsc --noEmit
+npm run build      # tsup -> dist/
+```
+
+`prepublishOnly` runs build, typecheck and tests. The canary's spend policy is in-memory. ClawRouter's own counterparty policy — payee, network and asset lists in `spending.json`, shipped in ClawRouter v0.12.257 and enforced on every signing path since v0.12.264 — is never read or written by this tool.
 
 ## v0.1 non-goals
 
