@@ -46,7 +46,7 @@
     "@blockrun/clawrouter": ">=0.12.275 <0.13.0"
   },
   "devDependencies": {
-    "@blockrun/clawrouter": "^0.12.249",
+    "@blockrun/clawrouter": "^0.12.275",
     "@types/node": "^22.15.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.0",
