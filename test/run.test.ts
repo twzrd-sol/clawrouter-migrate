@@ -1,6 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "./helpers/tmpdir.js";
 import { describe, expect, it } from "vitest";
 import { parseArgs } from "../src/args.js";
 import { humanBlock } from "../src/report.js";
@@ -113,7 +114,7 @@ describe("runMigrate", () => {
     const contents = Object.values(written)[0];
     expect(JSON.parse(contents)).toHaveLength(32);
     // The round trip that was broken: the loader only reads byte arrays or hex.
-    const dir = mkdtempSync(join(tmpdir(), "clawrouter-seed-test-"));
+    const dir = tempDir("clawrouter-seed-test-");
     try {
       const file = join(dir, "seed.json");
       writeFileSync(file, contents);
@@ -228,7 +229,7 @@ describe("paid amount attribution", () => {
 
 describe("persist-wallet write", () => {
   it("refuses to overwrite an existing wallet path", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "clawrouter-wallet-test-"));
+    const dir = tempDir("clawrouter-wallet-test-");
     const deps = baseDeps({ cwd: dir, persistWallet: undefined });
     try {
       const name = "migrated-2026-09-01T06-00-00-000Z.wallet.json";
@@ -241,7 +242,7 @@ describe("persist-wallet write", () => {
   });
 
   it("writes the seed 0600 when the path is free", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "clawrouter-wallet-test-"));
+    const dir = tempDir("clawrouter-wallet-test-");
     const deps = baseDeps({ cwd: dir, persistWallet: undefined });
     try {
       const result = await runMigrate(parseArgs(["--persist-wallet"]), deps);

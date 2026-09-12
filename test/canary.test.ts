@@ -11,7 +11,7 @@ import { sessionCap } from "../src/proxy.js";
 import { loadSolanaSeed } from "../src/wallet.js";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tempDir } from "./helpers/tmpdir.js";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -274,7 +274,7 @@ describe("pollCanarySignature", () => {
 describe("loadSolanaSeed", () => {
   it("takes the first 32 bytes of a 64-byte keypair JSON", () => {
     const secret = Array.from({ length: 64 }, (_, i) => i);
-    const file = join(tmpdir(), `migrate-wallet-${Date.now()}.json`);
+    const file = join(tempDir("migrate-wallet-"), "wallet.json");
     writeFileSync(file, JSON.stringify(secret));
     const seed = loadSolanaSeed({ walletFile: file });
     expect(seed).toHaveLength(32);
