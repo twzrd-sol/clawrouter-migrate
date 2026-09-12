@@ -2,9 +2,9 @@
 
 One command that proves a local [ClawRouter](https://github.com/BlockRunAI/ClawRouter) path and prints a rewrite snippet for OpenRouter / OpenAI / OpenClaw clients.
 
-npm scope is `@wzrd_sol`. GitHub remains `twzrd-sol/clawrouter-migrate`. The earlier unscoped `clawrouter-migrate@0.1.0` is unchanged. If BlockRun blesses the package, this graduates to `@blockrun/clawrouter-migrate` and later `clawrouter migrate`.
+This repository is **0.1.4**. Package name is `@wzrd_sol/clawrouter-migrate`; GitHub is `twzrd-sol/clawrouter-migrate`. `npx @wzrd_sol/clawrouter-migrate` installs the latest published npm release, which may lag the repo.
 
-Requires `@blockrun/clawrouter` **>= 0.12.249** (the floor that already ran free and paid canaries).
+Requires `@blockrun/clawrouter` **>= 0.12.249**.
 
 ```bash
 npx @wzrd_sol/clawrouter-migrate
@@ -14,7 +14,7 @@ npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05
 ## What it does
 
 1. Detects the current surface (`OPENROUTER_*`, `OPENAI_*`, `~/.openclaw`, or unknown)
-2. Starts an **isolated** ClawRouter proxy behind an OpenAI-path allowlist gate on a free port (never 8402)
+2. Starts an isolated ClawRouter proxy behind an OpenAI-path allowlist on an unused local port
 3. Runs a free canary (`free/*` → HTTP 200, $0, no 402)
 4. Optionally runs a pinned paid canary (`deepseek/deepseek-chat`) under a pre-sign ceiling
 5. Writes `migrated-<timestamp>.profile.yaml` and prints a `baseURL` + `apiKey: "x402"` snippet
@@ -22,20 +22,20 @@ npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05
 
 Free failure exits non-zero and does not claim migrated. Missing paid funds skips paid and still succeeds.
 
-## Isolation guarantees
+## Isolation
 
-- Unused listen port; refuses the default production port 8402 and refuses `--port` if something is already listening (the peer library would otherwise reuse that process). `--port` is the **advertised** allowlist gate; ClawRouter itself binds a different loopback port.
-- In-memory spend policy (does not write `~/.openclaw/blockrun/spending.json`)
-- Temporary `HOME` so accidental persistence stays off the operator home
-- Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, gitignored). Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplied the paid signer — that flag must not write a different generated mnemonic.
+- Unused local listen port; `--port` is refused if something is already listening
+- In-memory spend policy (does not write host spend files)
+- Temporary `HOME` so the run does not persist into the calling home directory
+- Ephemeral wallet unless `--persist-wallet` (0600 `*.wallet.json`, gitignored). Skipped when `--wallet-file` or `SOLANA_WALLET_KEY` already supplies the paid signer
 - Response cache off so the canary is a real request
 - Never prints key material
 - Detected OpenRouter / OpenAI keys are ignored and never uploaded
-- `partners: false` is enforced at runtime: the advertised port only forwards `/v1/models`, `/v1/chat/completions`, `/v1/completions`, and `/v1/embeddings`. Partner, phone, media, and other settlement paths return HTTP 403 (`type: route_blocked`) and never reach upstream.
+- Only OpenAI-compatible paths (`/v1/models`, `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings`) are forwarded; other routes are blocked
 
-Paid ceilings get estimator slack: a strict `$0.001` run cap 429s on a `$0.0012` estimate. The session cap is `max(--ceiling, 0.002)`.
+Paid `--ceiling` is a session cap. The run uses a small floor so a tight `$0.001` request estimate is not rejected immediately.
 
-`ProxyOptions.onPayment` is not treated as a receipt. The signed-payment log supplies the USD amount. A Solscan link is attached only when the before-snapshot RPC succeeds, a **new** signature appears after the paid call, and the USDC debit matches that amount — not the wallet’s latest historical transaction, and never when the snapshot failed (that would make old txs look new).
+Receipts come from the signed-payment log, not from `ProxyOptions.onPayment`. A Solscan link is added only when a new matching USDC debit is observed after the paid call.
 
 ## Paid wallet
 
@@ -45,14 +45,10 @@ npx @wzrd_sol/clawrouter-migrate --paid --ceiling 0.05 --wallet-file ./solana.js
 
 `--wallet-file` is a Solana secret JSON array (32-byte seed or 64-byte keypair). `SOLANA_WALLET_KEY` accepts the same JSON or a 64-character hex seed. The CLI does not read any default host wallet path.
 
-## Canary contract
+## Output
 
 ```text
 surface | proxy | wallet(pubkey only) | ceiling | free: ok|fail | paid: ok|skip|fail | receipt | profile
 ```
 
 `--json` prints the same fields as an object.
-
-## v0.1 non-goals
-
-OpenRouter parity board, profile registry, partner/phone/media enablement, GitHub Action CI, and a ClawRouter core PR.
