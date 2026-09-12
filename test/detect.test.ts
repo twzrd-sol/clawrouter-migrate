@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { tempDir } from "./helpers/tmpdir.js";
 import { describe, expect, it } from "vitest";
 import { detectSurface } from "../src/detect.js";
 import { loadSolanaSeed } from "../src/wallet.js";
@@ -40,7 +41,7 @@ describe("detectSurface", () => {
   });
 
   it("detects OpenClaw from homedir", () => {
-    const home = mkdtempSync(join(tmpdir(), "migrate-detect-"));
+    const home = tempDir("migrate-detect-");
     mkdirSync(join(home, ".openclaw"));
     expect(detectSurface({ env: {}, homedir: home })).toEqual({ surface: "openclaw" });
   });

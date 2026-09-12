@@ -26,7 +26,7 @@
   "scripts": {
     "build": "tsup",
     "prepublishOnly": "npm run build && npm run typecheck && npm test",
-    "test": "vitest run",
+    "test": "node scripts/reap-tmp-run.mjs -- npx vitest run",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
